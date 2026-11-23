@@ -7,3 +7,12 @@ packages:
   gitUrl: https://github.com/rafestevam
   gitUsername: rafestevam
   gitBranch: main
+services:
+- serviceName: project.femsa_financial_mdm.integrations:propagateFinancialDataSVC
+  packages:
+  - name: FEMSA_Financial_MDMProject
+    version: "1.0"
+- serviceName: project.femsa_financial_mdm.streaming.connections:EmbeddedMessaging
+  packages:
+  - name: FEMSA_Financial_MDMProject
+    version: "1.0"

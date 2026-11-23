@@ -640,6 +640,9 @@
 
 <MAPDELETE FIELD="/jsonData;3;0">
 </MAPDELETE>
+
+<MAPDELETE FIELD="/documentTypeName;1;0">
+</MAPDELETE>
 </MAP>
 </INVOKE>
 </SEQUENCE>

@@ -11,6 +11,7 @@ service postGLAccount (
         String requestStatus;
         String sapObjectId;
         String publicationStatus;
+        String errorCode;
         String errorMessage;
     }
 )
@@ -107,6 +108,8 @@ properties {
             set (variable) `glStatus` = "%sapCanonical/financialMaster/status%";
             set `sapObjectId` = "";
             drop `publicationStatus`;
+            drop `errorCode`;
+            drop `errorMessage`;
         }
         IF (glStatus=="ACTIVE") {
             MAP {
@@ -127,9 +130,11 @@ properties {
                 MAP {
                     mapTarget {
                         String publicationStatus;
+                        String errorCode;
                         String errorMessage;
                     }
                     set `publicationStatus` = "QUARANTINED";
+                    set `errorCode` = "WM_STATUS_UNMAPPED";
                     set (variable) `errorMessage` = "Status '%glStatus%' sem mapeamento para isBlockedForPosting; registro em quarentena, nao enviado ao SAP";
                 }
             }
@@ -563,7 +568,6 @@ properties {
                 set (variable) `requestId` = "%document/requestId%";
                 set (variable) `requestStatus` = "%document/status%";
                 set (variable) `errorMessage` = "%document/error/message%";
-                drop `document`;
                 drop `jsonString`;
                 drop `responseString`;
                 drop `body`;
@@ -704,7 +708,6 @@ properties {
                             }
                             set (variable) `requestStatus` = "%document/status%";
                             set (variable) `sapObjectId` = "%document/sapObjectId%";
-                            drop `document`;
                             drop `jsonString`;
                             drop `responseString`;
                             drop `body`;
@@ -747,10 +750,8 @@ properties {
                 MAP {
                     mapTarget {
                         String publicationStatus;
-                        String errorMessage;
                     }
                     set (variable) `publicationStatus` = "%requestStatus%";
-                    set `errorMessage` = "";
                     drop `pollHeaders`;
                 }
             } ELSE {
@@ -763,6 +764,121 @@ properties {
                     }
                 }
             }
+            MAP {
+                drop `toList`;
+                drop `elementList`;
+                drop `errorCode`;
+            }
+            LOOP {
+                inputArray: "/document/errors"
+                maxThreads: "1"
+                parallelErrorHandling: "reportError"
+                MAP {
+                    mapTarget {
+                        String itemError;
+                    }
+                    set (variable) `itemError` = "%document/errors/code%: %document/errors/message%";
+                }
+                IF (errorCode==$null) {
+                    MAP {
+                        mapTarget {
+                            String errorCode;
+                        }
+                        set (variable) `errorCode` = "%document/errors/code%";
+                    }
+                }
+                INVOKE pub.string:replace {
+                    validateInput: false
+                    validateOutput: false
+                    input {
+                        copy `itemError` -> `inString`;
+                        set `searchString` = "%document/errors/[A-Za-z]+%";
+                        set `replaceString` = "";
+                        set `useRegex` = "true";
+                    }
+                    output {
+                        mapTarget {
+                            String itemError;
+                        }
+                        copy `value` -> `itemError`;
+                        drop `value`;
+                        drop `inString`;
+                        drop `searchString`;
+                        drop `replaceString`;
+                        drop `useRegex`;
+                    }
+                }
+                INVOKE pub.list:appendToStringList {
+                    validateInput: false
+                    validateOutput: false
+                    input {
+                        copy `itemError` -> `fromItem`;
+                    }
+                    output {
+                        mapTarget {
+                            String[] elementList;
+                        }
+                        copy `toList` -> `elementList`;
+                        drop `fromItem`;
+                        drop `itemError`;
+                    }
+                }
+            }
+            IF (toList==$null) {
+                MAP {
+                    mapTarget {
+                        String errorCode;
+                    }
+                    set (variable) `errorCode` = "%document/error/code%";
+                }
+            } ELSE {
+                INVOKE pub.string:makeString {
+                    validateInput: false
+                    validateOutput: false
+                    input {
+                        mapTarget {
+                            String separator;
+                        }
+                        set `separator` = " | ";
+                    }
+                    output {
+                        mapTarget {
+                            String errorMessage;
+                        }
+                        copy `value` -> `errorMessage`;
+                        drop `value`;
+                        drop `toList`;
+                        drop `elementList`;
+                        drop `separator`;
+                    }
+                }
+            }
+            INVOKE pub.string:replace {
+                validateInput: false
+                validateOutput: false
+                input {
+                    copy `errorCode` -> `inString`;
+                    set `searchString` = "^%[^%]*%$";
+                    set `replaceString` = "";
+                    set `useRegex` = "true";
+                }
+                output {
+                    mapTarget {
+                        String errorCode;
+                    }
+                    copy `value` -> `errorCode`;
+                    drop `value`;
+                    drop `inString`;
+                    drop `searchString`;
+                    drop `replaceString`;
+                    drop `useRegex`;
+                }
+            }
+            MAP {
+                drop `document`;
+                drop `toList`;
+                drop `elementList`;
+            }
         }
     } CATCH {
         INVOKE pub.flow:getLastError {
@@ -771,6 +887,7 @@ properties {
         }
         MAP {
             copy `lastError`/`error` -> `errorMessage`;
+            set `errorCode` = "WM_EXCEPTION";
         }
     }
 }

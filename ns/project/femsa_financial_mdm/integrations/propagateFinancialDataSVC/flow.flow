@@ -432,6 +432,158 @@ properties {
                 drop `useRegex`;
             }
         }
+        IF (errorMessage!=$null&&errorMessage!="") {
+            INVOKE pub.string:replace {
+                validateInput: false
+                validateOutput: false
+                input {
+                    copy `errorCode` -> `inString`;
+                    set `searchString` = "([\"\\\\])";
+                    set `replaceString` = "\\\\$1";
+                    set `useRegex` = "true";
+                }
+                output {
+                    mapTarget {
+                        String errorCode;
+                    }
+                    copy `value` -> `errorCode`;
+                    drop `value`;
+                    drop `inString`;
+                    drop `searchString`;
+                    drop `replaceString`;
+                    drop `useRegex`;
+                }
+            }
+            INVOKE pub.string:replace {
+                validateInput: false
+                validateOutput: false
+                input {
+                    copy `errorCode` -> `inString`;
+                    set `searchString` = "\\p{Cntrl}";
+                    set `replaceString` = " ";
+                    set `useRegex` = "true";
+                }
+                output {
+                    mapTarget {
+                        String errorCode;
+                    }
+                    copy `value` -> `errorCode`;
+                    drop `value`;
+                    drop `inString`;
+                    drop `searchString`;
+                    drop `replaceString`;
+                    drop `useRegex`;
+                }
+            }
+            INVOKE pub.string:replace {
+                validateInput: false
+                validateOutput: false
+                input {
+                    copy `errorMessage` -> `inString`;
+                    set `searchString` = "([\"\\\\])";
+                    set `replaceString` = "\\\\$1";
+                    set `useRegex` = "true";
+                }
+                output {
+                    mapTarget {
+                        String errorMessage;
+                    }
+                    copy `value` -> `errorMessage`;
+                    drop `value`;
+                    drop `inString`;
+                    drop `searchString`;
+                    drop `replaceString`;
+                    drop `useRegex`;
+                }
+            }
+            INVOKE pub.string:replace {
+                validateInput: false
+                validateOutput: false
+                input {
+                    copy `errorMessage` -> `inString`;
+                    set `searchString` = "\\p{Cntrl}";
+                    set `replaceString` = " ";
+                    set `useRegex` = "true";
+                }
+                output {
+                    mapTarget {
+                        String errorMessage;
+                    }
+                    copy `value` -> `errorMessage`;
+                    drop `value`;
+                    drop `inString`;
+                    drop `searchString`;
+                    drop `replaceString`;
+                    drop `useRegex`;
+                }
+            }
+            MAP {
+                mapTarget {
+                    String errorTail;
+                }
+                set (variable) `errorTail` = ",\"error\":{\"code\":\"%errorCode%\",\"message\":\"%errorMessage%\"}}";
+            }
+            INVOKE pub.string:replace {
+                validateInput: false
+                validateOutput: false
+                input {
+                    copy `errorTail` -> `inString`;
+                    set `searchString` = "%errorCode%";
+                    set `replaceString` = "";
+                    set `useRegex` = "true";
+                }
+                output {
+                    mapTarget {
+                        String errorTail;
+                    }
+                    copy `value` -> `errorTail`;
+                    drop `value`;
+                    drop `inString`;
+                    drop `searchString`;
+                    drop `replaceString`;
+                    drop `useRegex`;
+                }
+            }
+            INVOKE pub.string:replace {
+                validateInput: false
+                validateOutput: false
+                input {
+                    copy `callbackJson` -> `inString`;
+                    set `searchString` = "[}]$";
+                    set `replaceString` = "";
+                    set `useRegex` = "true";
+                }
+                output {
+                    mapTarget {
+                        String callbackJson;
+                    }
+                    copy `value` -> `callbackJson`;
+                    drop `value`;
+                    drop `inString`;
+                    drop `searchString`;
+                    drop `replaceString`;
+                    drop `useRegex`;
+                }
+            }
+            INVOKE pub.string:concat {
+                validateInput: false
+                validateOutput: false
+                input {
+                    copy `callbackJson` -> `inString1`;
+                    copy `errorTail` -> `inString2`;
+                }
+                output {
+                    mapTarget {
+                        String callbackJson;
+                    }
+                    copy `value` -> `callbackJson`;
+                    drop `value`;
+                    drop `inString1`;
+                    drop `inString2`;
+                    drop `errorTail`;
+                }
+            }
+        }
         TRY {
             INVOKE pub.client:http {
                 validateInput: false
@@ -526,6 +678,8 @@ properties {
             drop `callbackHeaders`;
             drop `callbackStatus`;
             drop `versionStr`;
+            drop `errorCode`;
+            drop `errorMessage`;
         }
         INVOKE pub.flow:debugLog {
             validateInput: false

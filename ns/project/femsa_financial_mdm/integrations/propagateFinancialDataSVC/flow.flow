@@ -674,6 +674,84 @@ properties {
             }
         }
         MAP {
+            mapTarget {
+                String httpErrorStatus;
+            }
+            set (variable) `httpErrorStatus` = "%httpStatus%";
+        }
+        INVOKE pub.string:replace {
+            validateInput: false
+            validateOutput: false
+            input {
+                copy `httpErrorStatus` -> `inString`;
+                set `searchString` = "^(?:(4(?:0[1-9]|[1-9][0-9])|5[0-9][0-9])|.*)$";
+                set `replaceString` = "$1";
+                set `useRegex` = "true";
+            }
+            output {
+                mapTarget {
+                    String httpErrorStatus;
+                }
+                copy `value` -> `httpErrorStatus`;
+                drop `value`;
+                drop `inString`;
+                drop `searchString`;
+                drop `replaceString`;
+                drop `useRegex`;
+            }
+        }
+        IF (errorCode=="WM_EXCEPTION"||httpErrorStatus!="") {
+            MAP {
+                mapTarget {
+                    String failMessage;
+                }
+                set (variable) `failMessage` = "Falha na publicacao SAP %sapCanonical/meta/globalMasterId% (callback %callbackStatus%, HTTP %httpStatus%, codigo %errorCode%): %errorMessage%";
+            }
+            INVOKE pub.string:replace {
+                validateInput: false
+                validateOutput: false
+                input {
+                    copy `failMessage` -> `inString`;
+                    set `searchString` = "%[^% ]*%";
+                    set `replaceString` = "";
+                    set `useRegex` = "true";
+                }
+                output {
+                    mapTarget {
+                        String failMessage;
+                    }
+                    copy `value` -> `failMessage`;
+                    drop `value`;
+                    drop `inString`;
+                    drop `searchString`;
+                    drop `replaceString`;
+                    drop `useRegex`;
+                }
+            }
+            INVOKE pub.flow:debugLog {
+                validateInput: false
+                validateOutput: false
+                input {
+                    copy `failMessage` -> `message`;
+                    set `function` = "project.femsa_financial_mdm.integrations:propagateFinancialDataSVC";
+                    set `level` = "Error";
+                }
+                output {
+                    drop `message`;
+                    drop `function`;
+                    drop `level`;
+                }
+            }
+            EXIT {
+                exitFrom: "$flow"
+                signal: "FAILURE"
+                failureMessage: "%failMessage%"
+            }
+        }
+        MAP {
+            drop `httpErrorStatus`;
+        }
+        MAP {
             drop `callbackJson`;
             drop `callbackHeaders`;
             drop `callbackStatus`;

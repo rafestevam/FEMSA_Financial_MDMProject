@@ -674,6 +674,53 @@ properties {
                                 copy `pollHeaders` -> `headers`;
                             }
                         }
+                        MAP {
+                            copy `header`/`status` -> `pollError`;
+                        }
+                        INVOKE pub.string:replace {
+                            validateInput: false
+                            validateOutput: false
+                            input {
+                                copy `pollError` -> `inString`;
+                                set `searchString` = "^(?:(4(?:0[1-9]|[1-9][0-9])|5[0-9][0-9])|.*)$";
+                                set `replaceString` = "$1";
+                                set `useRegex` = "true";
+                            }
+                            output {
+                                mapTarget {
+                                    String pollError;
+                                }
+                                copy `value` -> `pollError`;
+                                drop `value`;
+                                drop `inString`;
+                                drop `searchString`;
+                                drop `replaceString`;
+                                drop `useRegex`;
+                            }
+                        }
+                        IF (pollError!=$null&&pollError!="") {
+                            MAP {
+                                mapTarget {
+                                    String httpStatus;
+                                    String requestStatus;
+                                    String errorMessage;
+                                }
+                                set (variable) `httpStatus` = "%pollError%";
+                                set `requestStatus` = "HTTP_ERROR";
+                                set (variable) `errorMessage` = "Falha HTTP %pollError% ao consultar a requisicao SAP %requestId%";
+                                drop `pollError`;
+                                drop `body`;
+                                drop `header`;
+                                drop `headers`;
+                                drop `url`;
+                                drop `method`;
+                                drop `encodedURL`;
+                            }
+                            EXIT {
+                                exitFrom: "$loop"
+                                signal: "SUCCESS"
+                            }
+                        }
                         INVOKE pub.string:bytesToString {
                             validateInput: false
                             validateOutput: false
@@ -708,6 +755,7 @@ properties {
                             }
                             set (variable) `requestStatus` = "%document/status%";
                             set (variable) `sapObjectId` = "%document/sapObjectId%";
+                            drop `pollError`;
                             drop `jsonString`;
                             drop `responseString`;
                             drop `body`;
@@ -888,6 +936,27 @@ properties {
         MAP {
             copy `lastError`/`error` -> `errorMessage`;
             set `errorCode` = "WM_EXCEPTION";
+        }
+        INVOKE pub.string:replace {
+            validateInput: false
+            validateOutput: false
+            input {
+                copy `errorMessage` -> `inString`;
+                set `searchString` = "(?s)^(?:.*Net(4(?:0[1-9]|[1-9][0-9])|5[0-9][0-9])Exception.*|.*)$";
+                set `replaceString` = "$1";
+                set `useRegex` = "true";
+            }
+            output {
+                mapTarget {
+                    String httpStatus;
+                }
+                copy `value` -> `httpStatus`;
+                drop `value`;
+                drop `inString`;
+                drop `searchString`;
+                drop `replaceString`;
+                drop `useRegex`;
+            }
         }
     }
 }

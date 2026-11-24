@@ -712,9 +712,6 @@
 
   <!-- nodes -->
 
-<MAPCOPY FROM="/financialApproved;4;0;project.femsa_financial_mdm.documenttypes:financialApprovedDT/eventId;1;0" TO="/sapCanonical;4;0;project.femsa_financial_mdm.documenttypes:sapCanonicalDT/meta;2;0/globalMasterId;1;0">
-</MAPCOPY>
-
 <MAPCOPY FROM="/financialApproved;4;0;project.femsa_financial_mdm.documenttypes:financialApprovedDT/correlationId;1;0" TO="/sapCanonical;4;0;project.femsa_financial_mdm.documenttypes:sapCanonicalDT/meta;2;0/correlationId;1;0">
 </MAPCOPY>
 
@@ -722,6 +719,27 @@
 </MAPCOPY>
 
 <MAPCOPY FROM="/financialApproved;4;0;project.femsa_financial_mdm.documenttypes:financialApprovedDT/occurredAt;1;0" TO="/sapCanonical;4;0;project.femsa_financial_mdm.documenttypes:sapCanonicalDT/meta;2;0/occurredAt;1;0">
+</MAPCOPY>
+
+<MAPCOPY FROM="/financialApproved;4;0;project.femsa_financial_mdm.documenttypes:financialApprovedDT/masterData;2;0/stepId;1;0" TO="/sapCanonical;4;0;project.femsa_financial_mdm.documenttypes:sapCanonicalDT/meta;2;0/globalMasterId;1;0">
+</MAPCOPY>
+
+<MAPCOPY FROM="/financialApproved;4;0;project.femsa_financial_mdm.documenttypes:financialApprovedDT/masterData;2;0/version;3.7;0" TO="/sapCanonical;4;0;project.femsa_financial_mdm.documenttypes:sapCanonicalDT/meta;2;0/version;3.7;0">
+</MAPCOPY>
+
+<MAPCOPY FROM="/financialApproved;4;0;project.femsa_financial_mdm.documenttypes:financialApprovedDT/source;2;0/system;1;0" TO="/sapCanonical;4;0;project.femsa_financial_mdm.documenttypes:sapCanonicalDT/meta;2;0/sourceSystem;1;0">
+</MAPCOPY>
+
+<MAPCOPY FROM="/financialApproved;4;0;project.femsa_financial_mdm.documenttypes:financialApprovedDT/source;2;0/environment;1;0" TO="/sapCanonical;4;0;project.femsa_financial_mdm.documenttypes:sapCanonicalDT/meta;2;0/sourceEventId;1;0">
+</MAPCOPY>
+
+<MAPCOPY FROM="/financialApproved;4;0;project.femsa_financial_mdm.documenttypes:financialApprovedDT/masterData;2;0/objectType;1;0" TO="/sapCanonical;4;0;project.femsa_financial_mdm.documenttypes:sapCanonicalDT/financialMaster;2;0/type;1;0">
+</MAPCOPY>
+
+<MAPCOPY FROM="/financialApproved;4;0;project.femsa_financial_mdm.documenttypes:financialApprovedDT/masterData;2;0/status;1;0" TO="/sapCanonical;4;0;project.femsa_financial_mdm.documenttypes:sapCanonicalDT/financialMaster;2;0/status;1;0">
+</MAPCOPY>
+
+<MAPCOPY FROM="/financialApproved;4;0;project.femsa_financial_mdm.documenttypes:financialApprovedDT/masterData;2;0/effectiveDate;1;0" TO="/sapCanonical;4;0;project.femsa_financial_mdm.documenttypes:sapCanonicalDT/financialMaster;2;0/validFrom;1;0">
 </MAPCOPY>
 </MAP>
 

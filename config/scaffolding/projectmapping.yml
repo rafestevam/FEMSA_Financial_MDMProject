@@ -3,7 +3,7 @@ projectName: FEMSA_Financial_MDMProject
 runtimes:
 - runtimeAlias: femsa_wm_edge_mx
   assets:
-  - name: Untitled Workflow
+  - name: Integration Stibo SAP
     type: workflow
     uid: flff85bfe826664a9cbf083c14ee1ad006
     stepId: a0

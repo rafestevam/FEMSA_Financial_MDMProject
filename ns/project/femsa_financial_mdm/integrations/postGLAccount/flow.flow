@@ -66,6 +66,11 @@ properties {
             validateInput: false
             validateOutput: false
             input {
+                mapTarget {
+                    String searchString;
+                    String replaceString;
+                    String useRegex;
+                }
                 copy `versionStr` -> `inString`;
                 set `searchString` = "^(?!.*.meta.:[{][^}]*.version.:[0-9]).*$";
                 set `replaceString` = "";
@@ -177,6 +182,10 @@ properties {
                     validateInput: false
                     validateOutput: false
                     input {
+                        mapTarget {
+                            String beginIndex;
+                            String endIndex;
+                        }
                         copy `currentLanguage` -> `inString`;
                         set `beginIndex` = "0";
                         set `endIndex` = "2";
@@ -453,6 +462,11 @@ properties {
                 validateInput: false
                 validateOutput: false
                 input {
+                    mapTarget {
+                        String searchString;
+                        String replaceString;
+                        String useRegex;
+                    }
                     copy `headerJson` -> `inString`;
                     set `searchString` = "[}]$";
                     set `replaceString` = "";
@@ -515,6 +529,38 @@ properties {
                 validateInput: false
                 validateOutput: false
                 input {
+                    mapTarget {
+                        String url;
+                        String method;
+                        String timeout;
+                        record data {
+                            required: false;
+                            allowUnspecifiedFields: true;
+                        } {
+                            record args {
+                                required: false;
+                                allowUnspecifiedFields: true;
+                            };
+                            String[][] table {
+                                required: false;
+                            };
+                            String string {
+                                required: false;
+                            };
+                            Object bytes {
+                                required: false;
+                            };
+                            Object mimeStream {
+                                required: false;
+                            };
+                            Object stream {
+                                required: false;
+                            };
+                            String encoding {
+                                required: false;
+                            };
+                        };
+                    }
                     set `url` = "http://68.221.160.79:5002/sap/api/v1/gl-accounts";
                     set `method` = "post";
                     set `timeout` = "30000";
@@ -527,9 +573,6 @@ properties {
                 validateInput: false
                 validateOutput: false
                 input {
-                    mapTarget {
-                        String encoding;
-                    }
                     copy `body`/`bytes` -> `bytes`;
                     set `encoding` = "UTF-8";
                 }
@@ -580,6 +623,11 @@ properties {
                 validateInput: false
                 validateOutput: false
                 input {
+                    mapTarget {
+                        String searchString;
+                        String replaceString;
+                        String useRegex;
+                    }
                     copy `requestId` -> `inString`;
                     set `searchString` = "^%[^%]*%$";
                     set `replaceString` = "";
@@ -601,6 +649,11 @@ properties {
                 validateInput: false
                 validateOutput: false
                 input {
+                    mapTarget {
+                        String searchString;
+                        String replaceString;
+                        String useRegex;
+                    }
                     copy `requestStatus` -> `inString`;
                     set `searchString` = "^%[^%]*%$";
                     set `replaceString` = "";
@@ -622,6 +675,11 @@ properties {
                 validateInput: false
                 validateOutput: false
                 input {
+                    mapTarget {
+                        String searchString;
+                        String replaceString;
+                        String useRegex;
+                    }
                     copy `errorMessage` -> `inString`;
                     set `searchString` = "^%[^%]*%$";
                     set `replaceString` = "";
@@ -662,8 +720,7 @@ properties {
                             validateOutput: false
                             input {
                                 mapTarget {
-                                    String url;
-                                    String method;
+                                    String timeout;
                                 }
                                 set (variable) `url` = "http://68.221.160.79:5002/sap/api/v1/requests/%requestId%";
                                 set `method` = "get";
@@ -675,9 +732,6 @@ properties {
                             validateInput: false
                             validateOutput: false
                             input {
-                                mapTarget {
-                                    String encoding;
-                                }
                                 copy `body`/`bytes` -> `bytes`;
                                 set `encoding` = "UTF-8";
                             }
@@ -728,6 +782,11 @@ properties {
                     validateInput: false
                     validateOutput: false
                     input {
+                        mapTarget {
+                            String searchString;
+                            String replaceString;
+                            String useRegex;
+                        }
                         copy `sapObjectId` -> `inString`;
                         set `searchString` = "^%[^%]*%$";
                         set `replaceString` = "";
@@ -834,6 +893,38 @@ properties {
                     validateInput: false
                     validateOutput: false
                     input {
+                        mapTarget {
+                            String url;
+                            String method;
+                            String timeout;
+                            record data {
+                                required: false;
+                                allowUnspecifiedFields: true;
+                            } {
+                                record args {
+                                    required: false;
+                                    allowUnspecifiedFields: true;
+                                };
+                                String[][] table {
+                                    required: false;
+                                };
+                                String string {
+                                    required: false;
+                                };
+                                Object bytes {
+                                    required: false;
+                                };
+                                Object mimeStream {
+                                    required: false;
+                                };
+                                Object stream {
+                                    required: false;
+                                };
+                                String encoding {
+                                    required: false;
+                                };
+                            };
+                        }
                         set `url` = "http://68.221.160.79/step/api/v1/publication-status";
                         set `method` = "post";
                         set `timeout` = "30000";
@@ -879,4 +970,3 @@ properties {
         }
     }
 }
-

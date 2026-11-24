@@ -8,11 +8,23 @@ packages:
   gitUsername: rafestevam
   gitBranch: main
 services:
+- serviceName: project.femsa_financial_mdm.integrations:postGLAccount
+  packages:
+  - name: FEMSA_Financial_MDMProject
+    version: "1.0"
 - serviceName: project.femsa_financial_mdm.integrations:propagateFinancialDataSVC
   packages:
   - name: FEMSA_Financial_MDMProject
     version: "1.0"
-- serviceName: project.femsa_financial_mdm.streaming.connections:EmbeddedMessaging
+- serviceName: pub.flow:debugLog
   packages:
-  - name: FEMSA_Financial_MDMProject
-    version: "1.0"
+  - name: WmPublic
+    version: 12.1.0.0.1032
+- serviceName: pub.json:jsonToDocument
+  packages:
+  - name: WmPublic
+    version: 12.1.0.0.1032
+- serviceName: pub.json:documentToJSON
+  packages:
+  - name: WmPublic
+    version: 12.1.0.0.1032

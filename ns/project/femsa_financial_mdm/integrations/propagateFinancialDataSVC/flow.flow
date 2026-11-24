@@ -63,65 +63,13 @@ properties {
             validateInput: false
             validateOutput: false
             input {
-                mapTarget {
-                    Object jsonData;
-                    String documentTypeName;
-                }
                 copy `jsonPayload` -> `jsonData`;
                 set `documentTypeName` = "project.femsa_financial_mdm.documenttypes:financialApprovedDT";
             }
             output {
                 mapTarget {
-                    record financialApproved (project.femsa_financial_mdm.documenttypes:financialApprovedDT) {
+                    record financialApproved {
                         allowUnspecifiedFields: true;
-                    } {
-                        String eventType;
-                        String eventId;
-                        String correlationId;
-                        String occurredAt;
-                        record source {
-                            allowUnspecifiedFields: true;
-                        } {
-                            String system;
-                            String environment;
-                        };
-                        record masterData {
-                            allowUnspecifiedFields: true;
-                        } {
-                            String stepId;
-                            Long version;
-                            String objectType;
-                            String status;
-                            String effectiveDate;
-                            record chartOfAccounts {
-                                allowUnspecifiedFields: true;
-                            } {
-                                String stepId;
-                                String code;
-                            };
-                            record account {
-                                allowUnspecifiedFields: true;
-                            } {
-                                String code;
-                                record description {
-                                    allowUnspecifiedFields: true;
-                                } {
-                                    String es-MX;
-                                    String pt-BR;
-                                    String en-US;
-                                };
-                                String primaryLanguage;
-                                String accountType;
-                                String groupAccount;
-                                String costCategory;
-                            };
-                            recordList organizationalAssignments {
-                                allowUnspecifiedFields: true;
-                            } {
-                                String legalEntity;
-                                String companyCode;
-                            };
-                        };
                     };
                 }
                 copy `document` -> `financialApproved`;
@@ -132,54 +80,6 @@ properties {
             }
         }
         MAP {
-            mapTarget {
-                record sapCanonical (project.femsa_financial_mdm.documenttypes:sapCanonicalDT) {
-                    allowUnspecifiedFields: true;
-                } {
-                    record meta {
-                        allowUnspecifiedFields: true;
-                    } {
-                        String globalMasterId;
-                        Long version;
-                        String correlationId;
-                        String eventType;
-                        String sourceSystem;
-                        String sourceEventId;
-                        String occurredAt;
-                    };
-                    record financialMaster {
-                        allowUnspecifiedFields: true;
-                    } {
-                        String type;
-                        String code;
-                        String status;
-                        String validFrom;
-                        String chartOfAccounts;
-                        String accountType;
-                        String groupAccount;
-                        String costCategory;
-                        recordList descriptions {
-                            allowUnspecifiedFields: true;
-                        } {
-                            String language;
-                            String value;
-                        };
-                        recordList assignments {
-                            allowUnspecifiedFields: true;
-                        } {
-                            String legalEntity;
-                            String companyCode;
-                        };
-                        recordList dependencies {
-                            allowUnspecifiedFields: true;
-                        } {
-                            String type;
-                            String globalMasterId;
-                            String code;
-                        };
-                    };
-                };
-            }
             copy `financialApproved`/`correlationId` -> `sapCanonical`/`meta`/`correlationId`;
             copy `financialApproved`/`eventType` -> `sapCanonical`/`meta`/`eventType`;
             copy `financialApproved`/`occurredAt` -> `sapCanonical`/`meta`/`occurredAt`;
@@ -195,11 +95,6 @@ properties {
             validateInput: false
             validateOutput: false
             input {
-                mapTarget {
-                    record document {
-                        allowUnspecifiedFields: true;
-                    };
-                }
                 copy `sapCanonical` -> `document`;
             }
             output {

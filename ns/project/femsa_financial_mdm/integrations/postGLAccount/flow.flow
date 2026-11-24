@@ -11,7 +11,6 @@ service postGLAccount (
         String requestStatus;
         String sapObjectId;
         String publicationStatus;
-        String i3HttpStatus;
         String errorMessage;
     }
 )
@@ -66,11 +65,6 @@ properties {
             validateInput: false
             validateOutput: false
             input {
-                mapTarget {
-                    String searchString;
-                    String replaceString;
-                    String useRegex;
-                }
                 copy `versionStr` -> `inString`;
                 set `searchString` = "^(?!.*.meta.:[{][^}]*.version.:[0-9]).*$";
                 set `replaceString` = "";
@@ -182,10 +176,6 @@ properties {
                     validateInput: false
                     validateOutput: false
                     input {
-                        mapTarget {
-                            String beginIndex;
-                            String endIndex;
-                        }
                         copy `currentLanguage` -> `inString`;
                         set `beginIndex` = "0";
                         set `endIndex` = "2";
@@ -462,11 +452,6 @@ properties {
                 validateInput: false
                 validateOutput: false
                 input {
-                    mapTarget {
-                        String searchString;
-                        String replaceString;
-                        String useRegex;
-                    }
                     copy `headerJson` -> `inString`;
                     set `searchString` = "[}]$";
                     set `replaceString` = "";
@@ -529,38 +514,6 @@ properties {
                 validateInput: false
                 validateOutput: false
                 input {
-                    mapTarget {
-                        String url;
-                        String method;
-                        String timeout;
-                        record data {
-                            required: false;
-                            allowUnspecifiedFields: true;
-                        } {
-                            record args {
-                                required: false;
-                                allowUnspecifiedFields: true;
-                            };
-                            String[][] table {
-                                required: false;
-                            };
-                            String string {
-                                required: false;
-                            };
-                            Object bytes {
-                                required: false;
-                            };
-                            Object mimeStream {
-                                required: false;
-                            };
-                            Object stream {
-                                required: false;
-                            };
-                            String encoding {
-                                required: false;
-                            };
-                        };
-                    }
                     set `url` = "http://68.221.160.79:5002/sap/api/v1/gl-accounts";
                     set `method` = "post";
                     set `timeout` = "30000";
@@ -573,6 +526,9 @@ properties {
                 validateInput: false
                 validateOutput: false
                 input {
+                    mapTarget {
+                        String encoding;
+                    }
                     copy `body`/`bytes` -> `bytes`;
                     set `encoding` = "UTF-8";
                 }
@@ -623,11 +579,6 @@ properties {
                 validateInput: false
                 validateOutput: false
                 input {
-                    mapTarget {
-                        String searchString;
-                        String replaceString;
-                        String useRegex;
-                    }
                     copy `requestId` -> `inString`;
                     set `searchString` = "^%[^%]*%$";
                     set `replaceString` = "";
@@ -649,11 +600,6 @@ properties {
                 validateInput: false
                 validateOutput: false
                 input {
-                    mapTarget {
-                        String searchString;
-                        String replaceString;
-                        String useRegex;
-                    }
                     copy `requestStatus` -> `inString`;
                     set `searchString` = "^%[^%]*%$";
                     set `replaceString` = "";
@@ -675,11 +621,6 @@ properties {
                 validateInput: false
                 validateOutput: false
                 input {
-                    mapTarget {
-                        String searchString;
-                        String replaceString;
-                        String useRegex;
-                    }
                     copy `errorMessage` -> `inString`;
                     set `searchString` = "^%[^%]*%$";
                     set `replaceString` = "";
@@ -720,7 +661,8 @@ properties {
                             validateOutput: false
                             input {
                                 mapTarget {
-                                    String timeout;
+                                    String url;
+                                    String method;
                                 }
                                 set (variable) `url` = "http://68.221.160.79:5002/sap/api/v1/requests/%requestId%";
                                 set `method` = "get";
@@ -732,6 +674,9 @@ properties {
                             validateInput: false
                             validateOutput: false
                             input {
+                                mapTarget {
+                                    String encoding;
+                                }
                                 copy `body`/`bytes` -> `bytes`;
                                 set `encoding` = "UTF-8";
                             }
@@ -782,11 +727,6 @@ properties {
                     validateInput: false
                     validateOutput: false
                     input {
-                        mapTarget {
-                            String searchString;
-                            String replaceString;
-                            String useRegex;
-                        }
                         copy `sapObjectId` -> `inString`;
                         set `searchString` = "^%[^%]*%$";
                         set `replaceString` = "";
@@ -821,142 +761,6 @@ properties {
                         }
                         set `publicationStatus` = "REJECTED";
                     }
-                }
-            }
-        }
-        IF (publicationStatus!=$null) {
-            INVOKE pub.datetime:build {
-                validateInput: false
-                validateOutput: false
-                input {
-                    mapTarget {
-                        String `pattern`;
-                        String timezone;
-                    }
-                    set `pattern` = "yyyy-MM-dd'T'HH:mm:ss'Z'";
-                    set `timezone` = "UTC";
-                }
-                output {
-                    mapTarget {
-                        String confirmedAt;
-                    }
-                    copy `value` -> `confirmedAt`;
-                    drop `value`;
-                    drop `pattern`;
-                    drop `timezone`;
-                }
-            }
-            MAP {
-                mapTarget {
-                    record i3Headers {
-                        allowUnspecifiedFields: true;
-                    } {
-                        String Content-Type;
-                        String Accept;
-                        String X-Correlation-ID;
-                    };
-                }
-                set `i3Headers`/`Content-Type` = "application/json";
-                set `i3Headers`/`Accept` = "application/json";
-                set (variable) `i3Headers`/`X-Correlation-ID` = "%sapCanonical/meta/correlationId%";
-            }
-            MAP {
-                mapTarget {
-                    String i3Json;
-                }
-                set (variable) `i3Json` = "@{\"stepId\":\"%sapCanonical/meta/globalMasterId%\",\"version\":%versionStr%,\"target\":\"SAP\",\"status\":\"%publicationStatus%\",\"targetObjectId\":\"%sapObjectId%\",\"correlationId\":\"%sapCanonical/meta/correlationId%\",\"confirmedAt\":\"%confirmedAt%\"}";
-                drop `confirmedAt`;
-            }
-            INVOKE pub.string:replace {
-                validateInput: false
-                validateOutput: false
-                input {
-                    copy `i3Json` -> `inString`;
-                    set `searchString` = "^@";
-                    set `replaceString` = "";
-                    set `useRegex` = "true";
-                }
-                output {
-                    mapTarget {
-                        String i3Json;
-                    }
-                    copy `value` -> `i3Json`;
-                    drop `value`;
-                    drop `inString`;
-                    drop `searchString`;
-                    drop `replaceString`;
-                    drop `useRegex`;
-                }
-            }
-            TRY {
-                INVOKE pub.client:http {
-                    validateInput: false
-                    validateOutput: false
-                    input {
-                        mapTarget {
-                            String url;
-                            String method;
-                            String timeout;
-                            record data {
-                                required: false;
-                                allowUnspecifiedFields: true;
-                            } {
-                                record args {
-                                    required: false;
-                                    allowUnspecifiedFields: true;
-                                };
-                                String[][] table {
-                                    required: false;
-                                };
-                                String string {
-                                    required: false;
-                                };
-                                Object bytes {
-                                    required: false;
-                                };
-                                Object mimeStream {
-                                    required: false;
-                                };
-                                Object stream {
-                                    required: false;
-                                };
-                                String encoding {
-                                    required: false;
-                                };
-                            };
-                        }
-                        set `url` = "http://68.221.160.79/step/api/v1/publication-status";
-                        set `method` = "post";
-                        set `timeout` = "30000";
-                        copy `i3Json` -> `data`/`string`;
-                        set `data`/`encoding` = "UTF-8";
-                        copy `i3Headers` -> `headers`;
-                    }
-                }
-                MAP {
-                    mapSource {
-                        record header;
-                    }
-                    mapTarget {
-                        String i3HttpStatus;
-                    }
-                    copy `header`/`status` -> `i3HttpStatus`;
-                    drop `body`;
-                    drop `header`;
-                    drop `data`;
-                    drop `headers`;
-                    drop `url`;
-                    drop `method`;
-                    drop `encodedURL`;
-                    drop `i3Headers`;
-                    drop `i3Json`;
-                }
-            } CATCH {
-                MAP {
-                    mapTarget {
-                        String i3HttpStatus;
-                    }
-                    set `i3HttpStatus` = "ERROR";
                 }
             }
         }

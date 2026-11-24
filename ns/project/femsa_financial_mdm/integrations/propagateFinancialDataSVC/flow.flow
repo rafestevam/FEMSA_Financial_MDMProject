@@ -285,7 +285,6 @@ properties {
             set (variable) `canonicalJson` = "@{\"meta\":{\"globalMasterId\":\"%financialApproved/masterData/stepId%\",\"version\":%versionStr%,\"correlationId\":\"%financialApproved/correlationId%\",\"eventType\":\"MASTER_DATA_CHANGED\",\"sourceSystem\":\"STIBO_STEP\",\"sourceEventId\":\"%financialApproved/eventId%\",\"occurredAt\":\"%financialApproved/occurredAt%\"},\"financialMaster\":{\"type\":\"%financialApproved/masterData/objectType%\",\"code\":\"%financialApproved/masterData/account/code%\",\"status\":\"%financialApproved/masterData/status%\",\"validFrom\":\"%financialApproved/masterData/effectiveDate%\",\"chartOfAccounts\":\"%financialApproved/masterData/chartOfAccounts/code%\",\"accountType\":\"%financialApproved/masterData/account/accountType%\",\"groupAccount\":\"%financialApproved/masterData/account/groupAccount%\",\"costCategory\":\"%financialApproved/masterData/account/costCategory%\",\"descriptions\":[%descriptionsJson%],\"assignments\":[%assignmentsJson%],\"dependencies\":[{\"type\":\"CHART_OF_ACCOUNTS\",\"globalMasterId\":\"%financialApproved/masterData/chartOfAccounts/stepId%\",\"code\":\"%financialApproved/masterData/chartOfAccounts/code%\"}]}}";
             drop `descriptionsJson`;
             drop `assignmentsJson`;
-            drop `versionStr`;
         }
         INVOKE pub.string:replace {
             validateInput: false
@@ -315,9 +314,6 @@ properties {
                 copy `canonicalJson` -> `jsonString`;
             }
             output {
-                mapSource {
-                    String canonicalJson;
-                }
                 mapTarget {
                     record sapCanonical {
                         allowUnspecifiedFields: true;
@@ -335,6 +331,201 @@ properties {
         INVOKE project.femsa_financial_mdm.integrations:postGLAccount {
             validateInput: false
             validateOutput: false
+        }
+        IF (publicationStatus=="APPLIED") {
+            MAP {
+                mapTarget {
+                    String callbackStatus;
+                }
+                set `callbackStatus` = "APPLIED";
+            }
+        } ELSE {
+            IF (publicationStatus=="REJECTED") {
+                MAP {
+                    mapTarget {
+                        String callbackStatus;
+                    }
+                    set `callbackStatus` = "REJECTED";
+                }
+            } ELSE {
+                MAP {
+                    mapTarget {
+                        String callbackStatus;
+                    }
+                    set `callbackStatus` = "QUARANTINED";
+                }
+            }
+        }
+        INVOKE pub.datetime:build {
+            validateInput: false
+            validateOutput: false
+            input {
+                mapTarget {
+                    String `pattern`;
+                    String timezone;
+                }
+                set `pattern` = "yyyy-MM-dd'T'HH:mm:ss'Z'";
+                set `timezone` = "UTC";
+            }
+            output {
+                mapTarget {
+                    String confirmedAt;
+                }
+                copy `value` -> `confirmedAt`;
+                drop `value`;
+                drop `pattern`;
+                drop `timezone`;
+            }
+        }
+        MAP {
+            mapTarget {
+                String callbackJson;
+                record callbackHeaders {
+                    allowUnspecifiedFields: true;
+                } {
+                    String Content-Type;
+                };
+            }
+            set (variable) `callbackJson` = "@{\"stepId\":\"%sapCanonical/meta/globalMasterId%\",\"version\":%versionStr%,\"target\":\"SAP\",\"status\":\"%callbackStatus%\",\"targetObjectId\":\"%sapObjectId%\",\"targetRequestId\":\"%requestId%\",\"correlationId\":\"%sapCanonical/meta/correlationId%\",\"confirmedAt\":\"%confirmedAt%\"}";
+            set `callbackHeaders`/`Content-Type` = "application/json";
+            drop `confirmedAt`;
+        }
+        INVOKE pub.string:replace {
+            validateInput: false
+            validateOutput: false
+            input {
+                copy `callbackJson` -> `inString`;
+                set `searchString` = "^@";
+                set `replaceString` = "";
+                set `useRegex` = "true";
+            }
+            output {
+                mapTarget {
+                    String callbackJson;
+                }
+                copy `value` -> `callbackJson`;
+                drop `value`;
+                drop `inString`;
+                drop `searchString`;
+                drop `replaceString`;
+                drop `useRegex`;
+            }
+        }
+        INVOKE pub.string:replace {
+            validateInput: false
+            validateOutput: false
+            input {
+                copy `callbackJson` -> `inString`;
+                set `searchString` = "%[^%\"]*%";
+                set `replaceString` = "";
+                set `useRegex` = "true";
+            }
+            output {
+                mapTarget {
+                    String callbackJson;
+                }
+                copy `value` -> `callbackJson`;
+                drop `value`;
+                drop `inString`;
+                drop `searchString`;
+                drop `replaceString`;
+                drop `useRegex`;
+            }
+        }
+        TRY {
+            INVOKE pub.client:http {
+                validateInput: false
+                validateOutput: false
+                input {
+                    mapTarget {
+                        String url;
+                        String method;
+                        String timeout;
+                        record data {
+                            required: false;
+                            allowUnspecifiedFields: true;
+                        } {
+                            record args {
+                                required: false;
+                                allowUnspecifiedFields: true;
+                            };
+                            String[][] table {
+                                required: false;
+                            };
+                            String string {
+                                required: false;
+                            };
+                            Object bytes {
+                                required: false;
+                            };
+                            Object mimeStream {
+                                required: false;
+                            };
+                            Object stream {
+                                required: false;
+                            };
+                            String encoding {
+                                required: false;
+                            };
+                        };
+                    }
+                    set `url` = "http://158.23.160.94/step/api/v1/publication-status";
+                    set `method` = "post";
+                    set `timeout` = "30000";
+                    copy `callbackJson` -> `data`/`string`;
+                    set `data`/`encoding` = "UTF-8";
+                    copy `callbackHeaders` -> `headers`;
+                }
+            }
+            MAP {
+                mapSource {
+                    record header;
+                }
+                mapTarget {
+                    String i3HttpStatus;
+                }
+                copy `header`/`status` -> `i3HttpStatus`;
+                drop `body`;
+                drop `header`;
+                drop `data`;
+                drop `headers`;
+                drop `url`;
+                drop `method`;
+                drop `timeout`;
+                drop `encodedURL`;
+            }
+        } CATCH {
+            MAP {
+                mapTarget {
+                    String i3HttpStatus;
+                }
+                set `i3HttpStatus` = "ERROR";
+            }
+        }
+        INVOKE pub.flow:debugLog {
+            validateInput: false
+            validateOutput: false
+            input {
+                mapTarget {
+                    String message;
+                    String function;
+                    String level;
+                }
+                set (variable) `message` = "Callback I3 SAP %callbackStatus% -> HTTP %i3HttpStatus%: %callbackJson%";
+                set `function` = "project.femsa_financial_mdm.integrations:propagateFinancialDataSVC";
+                set `level` = "Info";
+            }
+            output {
+                drop `message`;
+                drop `function`;
+                drop `level`;
+            }
+        }
+        MAP {
+            drop `callbackJson`;
+            drop `callbackHeaders`;
+            drop `callbackStatus`;
+            drop `versionStr`;
         }
         INVOKE pub.flow:debugLog {
             validateInput: false

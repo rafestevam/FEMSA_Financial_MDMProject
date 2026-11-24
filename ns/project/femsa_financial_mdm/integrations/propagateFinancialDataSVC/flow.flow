@@ -79,32 +79,257 @@ properties {
                 drop `documentTypeName`;
             }
         }
-        MAP {
-            copy `financialApproved`/`correlationId` -> `sapCanonical`/`meta`/`correlationId`;
-            copy `financialApproved`/`eventType` -> `sapCanonical`/`meta`/`eventType`;
-            copy `financialApproved`/`occurredAt` -> `sapCanonical`/`meta`/`occurredAt`;
-            copy `financialApproved`/`masterData`/`stepId` -> `sapCanonical`/`meta`/`globalMasterId`;
-            copy `financialApproved`/`masterData`/`version` -> `sapCanonical`/`meta`/`version`;
-            copy `financialApproved`/`source`/`system` -> `sapCanonical`/`meta`/`sourceSystem`;
-            copy `financialApproved`/`source`/`environment` -> `sapCanonical`/`meta`/`sourceEventId`;
-            copy `financialApproved`/`masterData`/`objectType` -> `sapCanonical`/`financialMaster`/`type`;
-            copy `financialApproved`/`masterData`/`status` -> `sapCanonical`/`financialMaster`/`status`;
-            copy `financialApproved`/`masterData`/`effectiveDate` -> `sapCanonical`/`financialMaster`/`validFrom`;
-        }
-        INVOKE pub.json:documentToJSON {
+        INVOKE pub.json:documentToJSONString {
             validateInput: false
             validateOutput: false
             input {
-                copy `sapCanonical` -> `document`;
+                copy `financialApproved` -> `document`;
             }
             output {
                 mapTarget {
+                    String versionStr;
+                }
+                copy `jsonString` -> `versionStr`;
+                drop `jsonString`;
+                drop `document`;
+            }
+        }
+        INVOKE pub.string:replace {
+            validateInput: false
+            validateOutput: false
+            input {
+                mapTarget {
+                    String searchString;
+                    String replaceString;
+                    String useRegex;
+                }
+                copy `versionStr` -> `inString`;
+                set `searchString` = "^(?!.*.version.:[0-9]).*$";
+                set `replaceString` = "";
+                set `useRegex` = "true";
+            }
+            output {
+                mapTarget {
+                    String versionStr;
+                }
+                copy `value` -> `versionStr`;
+                drop `value`;
+                drop `inString`;
+                drop `searchString`;
+                drop `replaceString`;
+                drop `useRegex`;
+            }
+        }
+        INVOKE pub.string:replace {
+            validateInput: false
+            validateOutput: false
+            input {
+                copy `versionStr` -> `inString`;
+                set `searchString` = "^.*.version.:([0-9]+).*$";
+                set `replaceString` = "$1";
+                set `useRegex` = "true";
+            }
+            output {
+                mapTarget {
+                    String versionStr;
+                }
+                copy `value` -> `versionStr`;
+                drop `value`;
+                drop `inString`;
+                drop `searchString`;
+                drop `replaceString`;
+                drop `useRegex`;
+            }
+        }
+        INVOKE pub.json:documentToJSONString {
+            validateInput: false
+            validateOutput: false
+            input {
+                copy `financialApproved`/`masterData`/`account`/`description` -> `document`;
+            }
+            output {
+                mapTarget {
+                    String descriptionsJson;
+                }
+                copy `jsonString` -> `descriptionsJson`;
+                drop `jsonString`;
+                drop `document`;
+            }
+        }
+        INVOKE pub.string:replace {
+            validateInput: false
+            validateOutput: false
+            input {
+                copy `descriptionsJson` -> `inString`;
+                set `searchString` = "([{,]).([a-zA-Z-]+).:.(.*?).(?=,.[a-zA-Z-]+.:|[}]$)";
+                set `replaceString` = "$1{\"language\":\"$2\",\"value\":\"$3\"}";
+                set `useRegex` = "true";
+            }
+            output {
+                mapTarget {
+                    String descriptionsJson;
+                }
+                copy `value` -> `descriptionsJson`;
+                drop `value`;
+                drop `inString`;
+                drop `searchString`;
+                drop `replaceString`;
+                drop `useRegex`;
+            }
+        }
+        INVOKE pub.string:replace {
+            validateInput: false
+            validateOutput: false
+            input {
+                copy `descriptionsJson` -> `inString`;
+                set `searchString` = "^[{](.*)[}]$";
+                set `replaceString` = "$1";
+                set `useRegex` = "true";
+            }
+            output {
+                mapTarget {
+                    String descriptionsJson;
+                }
+                copy `value` -> `descriptionsJson`;
+                drop `value`;
+                drop `inString`;
+                drop `searchString`;
+                drop `replaceString`;
+                drop `useRegex`;
+            }
+        }
+        MAP {
+            drop `toList`;
+        }
+        LOOP {
+            inputArray: "/financialApproved/masterData/organizationalAssignments"
+            maxThreads: "1"
+            parallelErrorHandling: "reportError"
+            MAP {
+                mapTarget {
+                    record assignmentItem {
+                        allowUnspecifiedFields: true;
+                    } {
+                        String legalEntity;
+                        String companyCode;
+                    };
+                }
+                set (variable) `assignmentItem`/`legalEntity` = "%financialApproved/masterData/organizationalAssignments/legalEntity%";
+                set (variable) `assignmentItem`/`companyCode` = "%financialApproved/masterData/organizationalAssignments/companyCode%";
+            }
+            INVOKE pub.json:documentToJSONString {
+                validateInput: false
+                validateOutput: false
+                input {
+                    copy `assignmentItem` -> `document`;
+                }
+                output {
+                    mapTarget {
+                        String itemJson;
+                    }
+                    copy `jsonString` -> `itemJson`;
+                    drop `document`;
+                    drop `jsonString`;
+                }
+            }
+            INVOKE pub.list:appendToStringList {
+                validateInput: false
+                validateOutput: false
+                input {
+                    copy `itemJson` -> `fromItem`;
+                }
+                output {
+                    drop `fromItem`;
+                    drop `itemJson`;
+                    drop `assignmentItem`;
+                }
+            }
+        }
+        IF (toList==$null) {
+            MAP {
+                mapTarget {
+                    String assignmentsJson;
+                }
+                set `assignmentsJson` = "";
+            }
+        } ELSE {
+            INVOKE pub.string:makeString {
+                validateInput: false
+                validateOutput: false
+                input {
+                    mapTarget {
+                        String separator;
+                    }
+                    copy `toList` -> `elementList`;
+                    set `separator` = ",";
+                }
+                output {
+                    mapTarget {
+                        String assignmentsJson;
+                    }
+                    copy `value` -> `assignmentsJson`;
+                    drop `value`;
+                    drop `toList`;
+                    drop `elementList`;
+                    drop `separator`;
+                }
+            }
+        }
+        MAP {
+            drop `toList`;
+        }
+        MAP {
+            mapTarget {
+                String canonicalJson;
+            }
+            set (variable) `canonicalJson` = "@{\"meta\":{\"globalMasterId\":\"%financialApproved/masterData/stepId%\",\"version\":%versionStr%,\"correlationId\":\"%financialApproved/correlationId%\",\"eventType\":\"MASTER_DATA_CHANGED\",\"sourceSystem\":\"STIBO_STEP\",\"sourceEventId\":\"%financialApproved/eventId%\",\"occurredAt\":\"%financialApproved/occurredAt%\"},\"financialMaster\":{\"type\":\"%financialApproved/masterData/objectType%\",\"code\":\"%financialApproved/masterData/account/code%\",\"status\":\"%financialApproved/masterData/status%\",\"validFrom\":\"%financialApproved/masterData/effectiveDate%\",\"chartOfAccounts\":\"%financialApproved/masterData/chartOfAccounts/code%\",\"accountType\":\"%financialApproved/masterData/account/accountType%\",\"groupAccount\":\"%financialApproved/masterData/account/groupAccount%\",\"costCategory\":\"%financialApproved/masterData/account/costCategory%\",\"descriptions\":[%descriptionsJson%],\"assignments\":[%assignmentsJson%],\"dependencies\":[{\"type\":\"CHART_OF_ACCOUNTS\",\"globalMasterId\":\"%financialApproved/masterData/chartOfAccounts/stepId%\",\"code\":\"%financialApproved/masterData/chartOfAccounts/code%\"}]}}";
+            drop `descriptionsJson`;
+            drop `assignmentsJson`;
+            drop `versionStr`;
+        }
+        INVOKE pub.string:replace {
+            validateInput: false
+            validateOutput: false
+            input {
+                copy `canonicalJson` -> `inString`;
+                set `searchString` = "^@";
+                set `replaceString` = "";
+                set `useRegex` = "true";
+            }
+            output {
+                mapTarget {
+                    String canonicalJson;
+                }
+                copy `value` -> `canonicalJson`;
+                drop `value`;
+                drop `inString`;
+                drop `searchString`;
+                drop `replaceString`;
+                drop `useRegex`;
+            }
+        }
+        INVOKE pub.json:jsonStringToDocument {
+            validateInput: false
+            validateOutput: false
+            input {
+                copy `canonicalJson` -> `jsonString`;
+            }
+            output {
+                mapSource {
+                    String canonicalJson;
+                }
+                mapTarget {
+                    record sapCanonical {
+                        allowUnspecifiedFields: true;
+                    };
                     String jsonCanonical;
                 }
-                copy `jsonObj` -> `jsonCanonical`;
-                drop `jsonObj`;
-                drop `financialApproved`;
+                copy `document` -> `sapCanonical`;
+                copy `canonicalJson` -> `jsonCanonical`;
                 drop `document`;
+                drop `jsonString`;
+                drop `canonicalJson`;
+                drop `financialApproved`;
             }
         }
         INVOKE project.femsa_financial_mdm.integrations:postGLAccount {

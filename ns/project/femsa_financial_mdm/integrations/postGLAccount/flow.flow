@@ -9,6 +9,9 @@ service postGLAccount (
         String httpStatus;
         String requestId;
         String requestStatus;
+        String sapObjectId;
+        String publicationStatus;
+        String i3HttpStatus;
         String errorMessage;
     }
 )
@@ -44,27 +47,6 @@ properties {
 }
 {
     TRY {
-        MAP {
-            mapTarget {
-                String glStatus;
-            }
-            set (variable) `glStatus` = "%sapCanonical/financialMaster/status%";
-        }
-        IF (glStatus=="ACTIVE") {
-            MAP {
-                mapTarget {
-                    String isBlocked;
-                }
-                set `isBlocked` = "false";
-            }
-        } ELSE {
-            MAP {
-                mapTarget {
-                    String isBlocked;
-                }
-                set `isBlocked` = "true";
-            }
-        }
         INVOKE pub.json:documentToJSONString {
             validateInput: false
             validateOutput: false
@@ -123,386 +105,769 @@ properties {
             }
         }
         MAP {
-            drop `toList`;
+            set (variable) `glStatus` = "%sapCanonical/financialMaster/status%";
+            set `sapObjectId` = "";
+            drop `publicationStatus`;
         }
-        LOOP {
-            inputArray: "/sapCanonical/financialMaster/descriptions"
-            maxThreads: "1"
-            parallelErrorHandling: "reportError"
+        IF (glStatus=="ACTIVE") {
             MAP {
                 mapTarget {
-                    String currentLanguage;
-                    String currentText;
+                    String isBlocked;
                 }
-                set (variable) `currentLanguage` = "%sapCanonical/financialMaster/descriptions/language%";
-                set (variable) `currentText` = "%sapCanonical/financialMaster/descriptions/value%";
+                set `isBlocked` = "false";
             }
-            INVOKE pub.string:substring {
-                validateInput: false
-                validateOutput: false
-                input {
-                    copy `currentLanguage` -> `inString`;
-                    set `beginIndex` = "0";
-                    set `endIndex` = "2";
-                }
-                output {
+        } ELSE {
+            IF (glStatus=="INACTIVE") {
+                MAP {
                     mapTarget {
-                        String langPrefix;
+                        String isBlocked;
                     }
-                    copy `value` -> `langPrefix`;
-                    drop `value`;
+                    set `isBlocked` = "true";
+                }
+            } ELSE {
+                MAP {
+                    mapTarget {
+                        String publicationStatus;
+                        String errorMessage;
+                    }
+                    set `publicationStatus` = "QUARANTINED";
+                    set (variable) `errorMessage` = "Status '%glStatus%' sem mapeamento para isBlockedForPosting; registro em quarentena, nao enviado ao SAP";
                 }
             }
-            INVOKE pub.string:toUpper {
-                validateInput: false
-                validateOutput: false
-                input {
-                    copy `langPrefix` -> `inString`;
-                }
-                output {
+        }
+        IF (publicationStatus==$null) {
+            MAP {
+                drop `toList`;
+                drop `elementList`;
+            }
+            LOOP {
+                inputArray: "/sapCanonical/financialMaster/descriptions"
+                maxThreads: "1"
+                parallelErrorHandling: "reportError"
+                MAP {
                     mapTarget {
+                        String currentLanguage;
+                        String currentText;
+                    }
+                    set (variable) `currentLanguage` = "%sapCanonical/financialMaster/descriptions/language%";
+                    set (variable) `currentText` = "%sapCanonical/financialMaster/descriptions/value%";
+                }
+                INVOKE pub.string:replace {
+                    validateInput: false
+                    validateOutput: false
+                    input {
+                        copy `currentText` -> `inString`;
+                        set `searchString` = "^(.{50}).*$";
+                        set `replaceString` = "$1";
+                        set `useRegex` = "true";
+                    }
+                    output {
+                        mapTarget {
+                            String currentText;
+                        }
+                        copy `value` -> `currentText`;
+                        drop `value`;
+                        drop `inString`;
+                        drop `searchString`;
+                        drop `replaceString`;
+                        drop `useRegex`;
+                    }
+                }
+                INVOKE pub.string:substring {
+                    validateInput: false
+                    validateOutput: false
+                    input {
+                        copy `currentLanguage` -> `inString`;
+                        set `beginIndex` = "0";
+                        set `endIndex` = "2";
+                    }
+                    output {
+                        mapTarget {
+                            String langPrefix;
+                        }
+                        copy `value` -> `langPrefix`;
+                        drop `value`;
+                        drop `beginIndex`;
+                        drop `endIndex`;
+                    }
+                }
+                INVOKE pub.string:toUpper {
+                    validateInput: false
+                    validateOutput: false
+                    input {
+                        copy `langPrefix` -> `inString`;
+                    }
+                    output {
+                        mapTarget {
+                            String langCode;
+                        }
+                        copy `value` -> `langCode`;
+                        drop `value`;
+                    }
+                }
+                MAP {
+                    mapSource {
                         String langCode;
+                        String currentText;
                     }
-                    copy `value` -> `langCode`;
+                    mapTarget {
+                        record textItem {
+                            allowUnspecifiedFields: true;
+                        } {
+                            String language;
+                            String shortText;
+                        };
+                    }
+                    copy `langCode` -> `textItem`/`language`;
+                    copy `currentText` -> `textItem`/`shortText`;
+                    drop `currentLanguage`;
+                    drop `currentText`;
+                    drop `langPrefix`;
+                    drop `langCode`;
+                    drop `inString`;
+                }
+                INVOKE pub.json:documentToJSONString {
+                    validateInput: false
+                    validateOutput: false
+                    input {
+                        copy `textItem` -> `document`;
+                    }
+                    output {
+                        mapTarget {
+                            String itemJson;
+                        }
+                        copy `jsonString` -> `itemJson`;
+                        drop `document`;
+                        drop `jsonString`;
+                    }
+                }
+                INVOKE pub.list:appendToStringList {
+                    validateInput: false
+                    validateOutput: false
+                    input {
+                        copy `itemJson` -> `fromItem`;
+                    }
+                    output {
+                        mapTarget {
+                            String[] elementList;
+                        }
+                        copy `toList` -> `elementList`;
+                        drop `fromItem`;
+                        drop `itemJson`;
+                        drop `textItem`;
+                    }
+                }
+            }
+            IF (toList==$null) {
+                MAP {
+                    mapTarget {
+                        String textsJson;
+                    }
+                    set `textsJson` = "";
+                }
+            } ELSE {
+                INVOKE pub.string:makeString {
+                    validateInput: false
+                    validateOutput: false
+                    input {
+                        mapTarget {
+                            String separator;
+                        }
+                        set `separator` = ",";
+                    }
+                    output {
+                        mapTarget {
+                            String textsJson;
+                        }
+                        copy `value` -> `textsJson`;
+                        drop `value`;
+                        drop `toList`;
+                        drop `elementList`;
+                        drop `separator`;
+                    }
+                }
+            }
+            MAP {
+                drop `toList`;
+                drop `elementList`;
+            }
+            LOOP {
+                inputArray: "/sapCanonical/financialMaster/assignments"
+                maxThreads: "1"
+                parallelErrorHandling: "reportError"
+                MAP {
+                    mapTarget {
+                        record assignmentItem {
+                            allowUnspecifiedFields: true;
+                        } {
+                            String companyCode;
+                            String legalEntity;
+                        };
+                    }
+                    set (variable) `assignmentItem`/`companyCode` = "%sapCanonical/financialMaster/assignments/companyCode%";
+                    set (variable) `assignmentItem`/`legalEntity` = "%sapCanonical/financialMaster/assignments/legalEntity%";
+                }
+                INVOKE pub.json:documentToJSONString {
+                    validateInput: false
+                    validateOutput: false
+                    input {
+                        copy `assignmentItem` -> `document`;
+                    }
+                    output {
+                        mapTarget {
+                            String itemJson;
+                        }
+                        copy `jsonString` -> `itemJson`;
+                        drop `document`;
+                        drop `jsonString`;
+                    }
+                }
+                INVOKE pub.list:appendToStringList {
+                    validateInput: false
+                    validateOutput: false
+                    input {
+                        copy `itemJson` -> `fromItem`;
+                    }
+                    output {
+                        mapTarget {
+                            String[] elementList;
+                        }
+                        copy `toList` -> `elementList`;
+                        drop `fromItem`;
+                        drop `itemJson`;
+                        drop `assignmentItem`;
+                    }
+                }
+            }
+            IF (toList==$null) {
+                MAP {
+                    mapTarget {
+                        String assignmentsJson;
+                    }
+                    set `assignmentsJson` = "";
+                }
+            } ELSE {
+                INVOKE pub.string:makeString {
+                    validateInput: false
+                    validateOutput: false
+                    input {
+                        mapTarget {
+                            String separator;
+                        }
+                        set `separator` = ",";
+                    }
+                    output {
+                        mapTarget {
+                            String assignmentsJson;
+                        }
+                        copy `value` -> `assignmentsJson`;
+                        drop `value`;
+                        drop `toList`;
+                        drop `elementList`;
+                        drop `separator`;
+                    }
+                }
+            }
+            MAP {
+                drop `toList`;
+                drop `elementList`;
+            }
+            MAP {
+                mapTarget {
+                    record sourceReference {
+                        allowUnspecifiedFields: true;
+                    } {
+                        String system;
+                        String objectId;
+                        String version;
+                    };
+                }
+                set `sourceReference`/`system` = "STIBO_STEP";
+                set (variable) `sourceReference`/`objectId` = "%sapCanonical/meta/globalMasterId%";
+                set (variable) `sourceReference`/`version` = "%versionStr%";
+            }
+            MAP {
+                mapSource {
+                    record sourceReference;
+                }
+                mapTarget {
+                    record requestDoc {
+                        allowUnspecifiedFields: true;
+                    } {
+                        record sourceReference {
+                            allowUnspecifiedFields: true;
+                        };
+                        String chartOfAccounts;
+                        String glAccount;
+                        String accountGroup;
+                        String groupAccountNumber;
+                        String validityStartDate;
+                    };
+                }
+                set (variable) `requestDoc`/`chartOfAccounts` = "%sapCanonical/financialMaster/chartOfAccounts%";
+                set (variable) `requestDoc`/`glAccount` = "%sapCanonical/financialMaster/code%";
+                set (variable) `requestDoc`/`accountGroup` = "%sapCanonical/financialMaster/accountType%";
+                set (variable) `requestDoc`/`groupAccountNumber` = "%sapCanonical/financialMaster/groupAccount%";
+                set (variable) `requestDoc`/`validityStartDate` = "%sapCanonical/financialMaster/validFrom%";
+                copy `sourceReference` -> `requestDoc`/`sourceReference`;
+                drop `sourceReference`;
+            }
+            INVOKE pub.json:documentToJSONString {
+                validateInput: false
+                validateOutput: false
+                input {
+                    copy `requestDoc` -> `document`;
+                }
+                output {
+                    mapTarget {
+                        String headerJson;
+                    }
+                    copy `jsonString` -> `headerJson`;
+                    drop `document`;
+                    drop `jsonString`;
+                    drop `requestDoc`;
+                }
+            }
+            INVOKE pub.string:replace {
+                validateInput: false
+                validateOutput: false
+                input {
+                    copy `headerJson` -> `inString`;
+                    set `searchString` = "(.version.:).([0-9]+).";
+                    set `replaceString` = "$1$2";
+                    set `useRegex` = "true";
+                }
+                output {
+                    mapTarget {
+                        String headerJson;
+                    }
+                    copy `value` -> `headerJson`;
                     drop `value`;
+                    drop `inString`;
+                    drop `searchString`;
+                    drop `replaceString`;
+                    drop `useRegex`;
+                }
+            }
+            INVOKE pub.string:replace {
+                validateInput: false
+                validateOutput: false
+                input {
+                    copy `headerJson` -> `inString`;
+                    set `searchString` = "[}]$";
+                    set `replaceString` = "";
+                    set `useRegex` = "true";
+                }
+                output {
+                    mapTarget {
+                        String headerJson;
+                    }
+                    copy `value` -> `headerJson`;
+                    drop `value`;
+                    drop `inString`;
+                    drop `searchString`;
+                    drop `replaceString`;
+                    drop `useRegex`;
+                }
+            }
+            MAP {
+                mapTarget {
+                    String jsonTail;
+                }
+                set (variable) `jsonTail` = ",\"isBlockedForPosting\":%isBlocked%,\"texts\":[%textsJson%],\"companyCodeAssignments\":[%assignmentsJson%]}";
+            }
+            INVOKE pub.string:concat {
+                validateInput: false
+                validateOutput: false
+                input {
+                    copy `headerJson` -> `inString1`;
+                    copy `jsonTail` -> `inString2`;
+                }
+                output {
+                    mapTarget {
+                        String requestJson;
+                    }
+                    copy `value` -> `requestJson`;
+                    drop `value`;
+                    drop `inString1`;
+                    drop `inString2`;
+                    drop `headerJson`;
+                    drop `jsonTail`;
+                }
+            }
+            MAP {
+                mapTarget {
+                    record requestHeaders {
+                        allowUnspecifiedFields: true;
+                    } {
+                        String Content-Type;
+                        String Accept;
+                        String Idempotency-Key;
+                        String X-Correlation-ID;
+                    };
+                }
+                set `requestHeaders`/`Content-Type` = "application/json";
+                set `requestHeaders`/`Accept` = "application/json";
+                set (variable) `requestHeaders`/`Idempotency-Key` = "%sapCanonical/meta/globalMasterId%:%versionStr%";
+                set (variable) `requestHeaders`/`X-Correlation-ID` = "%sapCanonical/meta/correlationId%";
+            }
+            INVOKE pub.client:http {
+                validateInput: false
+                validateOutput: false
+                input {
+                    set `url` = "http://68.221.160.79:5002/sap/api/v1/gl-accounts";
+                    set `method` = "post";
+                    set `timeout` = "30000";
+                    copy `requestJson` -> `data`/`string`;
+                    set `data`/`encoding` = "UTF-8";
+                    copy `requestHeaders` -> `headers`;
+                }
+            }
+            INVOKE pub.string:bytesToString {
+                validateInput: false
+                validateOutput: false
+                input {
+                    mapTarget {
+                        String encoding;
+                    }
+                    copy `body`/`bytes` -> `bytes`;
+                    set `encoding` = "UTF-8";
+                }
+                output {
+                    mapTarget {
+                        String responseString;
+                    }
+                    copy `string` -> `responseString`;
+                    drop `string`;
+                    drop `bytes`;
+                    drop `encoding`;
+                }
+            }
+            INVOKE pub.json:jsonStringToDocument {
+                validateInput: false
+                validateOutput: false
+                input {
+                    copy `responseString` -> `jsonString`;
                 }
             }
             MAP {
                 mapSource {
-                    String langCode;
-                    String currentText;
+                    record header;
                 }
                 mapTarget {
-                    record textItem {
-                        allowUnspecifiedFields: true;
-                    } {
-                        String language;
-                        String shortText;
-                    };
+                    String httpStatus;
+                    String requestId;
+                    String requestStatus;
+                    String errorMessage;
                 }
-                copy `langCode` -> `textItem`/`language`;
-                copy `currentText` -> `textItem`/`shortText`;
-                drop `currentLanguage`;
-                drop `currentText`;
-                drop `langPrefix`;
-                drop `langCode`;
-                drop `inString`;
-            }
-            INVOKE pub.json:documentToJSONString {
-                validateInput: false
-                validateOutput: false
-                input {
-                    copy `textItem` -> `document`;
-                }
-                output {
-                    mapTarget {
-                        String itemJson;
-                    }
-                    copy `jsonString` -> `itemJson`;
-                    drop `document`;
-                    drop `jsonString`;
-                }
-            }
-            INVOKE pub.list:appendToStringList {
-                validateInput: false
-                validateOutput: false
-                input {
-                    copy `itemJson` -> `fromItem`;
-                }
-                output {
-                    drop `fromItem`;
-                    drop `itemJson`;
-                    drop `textItem`;
-                }
-            }
-        }
-        IF (toList==$null) {
-            MAP {
-                mapTarget {
-                    String textsJson;
-                }
-                set `textsJson` = "";
-            }
-        } ELSE {
-            INVOKE pub.string:makeString {
-                validateInput: false
-                validateOutput: false
-                input {
-                    copy `toList` -> `elementList`;
-                    set `separator` = ",";
-                }
-                output {
-                    mapTarget {
-                        String textsJson;
-                    }
-                    copy `value` -> `textsJson`;
-                    drop `value`;
-                    drop `toList`;
-                    drop `elementList`;
-                    drop `separator`;
-                }
-            }
-        }
-        MAP {
-            drop `toList`;
-        }
-        LOOP {
-            inputArray: "/sapCanonical/financialMaster/assignments"
-            maxThreads: "1"
-            parallelErrorHandling: "reportError"
-            MAP {
-                mapTarget {
-                    record assignmentItem {
-                        allowUnspecifiedFields: true;
-                    } {
-                        String companyCode;
-                        String legalEntity;
-                    };
-                }
-                set (variable) `assignmentItem`/`companyCode` = "%sapCanonical/financialMaster/assignments/companyCode%";
-                set (variable) `assignmentItem`/`legalEntity` = "%sapCanonical/financialMaster/assignments/legalEntity%";
-            }
-            INVOKE pub.json:documentToJSONString {
-                validateInput: false
-                validateOutput: false
-                input {
-                    copy `assignmentItem` -> `document`;
-                }
-                output {
-                    mapTarget {
-                        String itemJson;
-                    }
-                    copy `jsonString` -> `itemJson`;
-                    drop `document`;
-                    drop `jsonString`;
-                }
-            }
-            INVOKE pub.list:appendToStringList {
-                validateInput: false
-                validateOutput: false
-                input {
-                    copy `itemJson` -> `fromItem`;
-                }
-                output {
-                    drop `fromItem`;
-                    drop `itemJson`;
-                    drop `assignmentItem`;
-                }
-            }
-        }
-        IF (toList==$null) {
-            MAP {
-                mapTarget {
-                    String assignmentsJson;
-                }
-                set `assignmentsJson` = "";
-            }
-        } ELSE {
-            INVOKE pub.string:makeString {
-                validateInput: false
-                validateOutput: false
-                input {
-                    copy `toList` -> `elementList`;
-                    set `separator` = ",";
-                }
-                output {
-                    mapTarget {
-                        String assignmentsJson;
-                    }
-                    copy `value` -> `assignmentsJson`;
-                    drop `value`;
-                    drop `toList`;
-                    drop `elementList`;
-                    drop `separator`;
-                }
-            }
-        }
-        MAP {
-            drop `toList`;
-        }
-        MAP {
-            mapTarget {
-                record sourceReference {
-                    allowUnspecifiedFields: true;
-                } {
-                    String system;
-                    String objectId;
-                    String version;
-                };
-            }
-            set (variable) `sourceReference`/`system` = "%sapCanonical/meta/sourceSystem%";
-            set (variable) `sourceReference`/`objectId` = "%sapCanonical/meta/globalMasterId%";
-            set (variable) `sourceReference`/`version` = "%versionStr%";
-        }
-        MAP {
-            mapSource {
-                record sourceReference;
-            }
-            mapTarget {
-                record requestDoc {
-                    allowUnspecifiedFields: true;
-                } {
-                    record sourceReference {
-                        allowUnspecifiedFields: true;
-                    };
-                    String chartOfAccounts;
-                    String glAccount;
-                    String accountGroup;
-                    String groupAccountNumber;
-                    String validityStartDate;
-                };
-            }
-            set (variable) `requestDoc`/`chartOfAccounts` = "%sapCanonical/financialMaster/chartOfAccounts%";
-            set (variable) `requestDoc`/`glAccount` = "%sapCanonical/financialMaster/code%";
-            set (variable) `requestDoc`/`accountGroup` = "%sapCanonical/financialMaster/accountType%";
-            set (variable) `requestDoc`/`groupAccountNumber` = "%sapCanonical/financialMaster/groupAccount%";
-            set (variable) `requestDoc`/`validityStartDate` = "%sapCanonical/financialMaster/validFrom%";
-            copy `sourceReference` -> `requestDoc`/`sourceReference`;
-            drop `sourceReference`;
-        }
-        INVOKE pub.json:documentToJSONString {
-            validateInput: false
-            validateOutput: false
-            input {
-                copy `requestDoc` -> `document`;
-            }
-            output {
-                mapTarget {
-                    String headerJson;
-                }
-                copy `jsonString` -> `headerJson`;
+                copy `header`/`status` -> `httpStatus`;
+                set (variable) `requestId` = "%document/requestId%";
+                set (variable) `requestStatus` = "%document/status%";
+                set (variable) `errorMessage` = "%document/error/message%";
                 drop `document`;
                 drop `jsonString`;
-                drop `requestDoc`;
+                drop `responseString`;
+                drop `body`;
+                drop `header`;
+                drop `data`;
+                drop `headers`;
+                drop `url`;
+                drop `method`;
+                drop `requestJson`;
+                drop `encodedURL`;
             }
-        }
-        INVOKE pub.string:replace {
-            validateInput: false
-            validateOutput: false
-            input {
-                copy `headerJson` -> `inString`;
-                set `searchString` = "(.version.:).([0-9]+).";
-                set `replaceString` = "$1$2";
-                set `useRegex` = "true";
-            }
-            output {
-                mapTarget {
-                    String headerJson;
+            INVOKE pub.string:replace {
+                validateInput: false
+                validateOutput: false
+                input {
+                    copy `requestId` -> `inString`;
+                    set `searchString` = "^%[^%]*%$";
+                    set `replaceString` = "";
+                    set `useRegex` = "true";
                 }
-                copy `value` -> `headerJson`;
-                drop `value`;
-                drop `inString`;
-                drop `searchString`;
-                drop `replaceString`;
-                drop `useRegex`;
-            }
-        }
-        INVOKE pub.string:replace {
-            validateInput: false
-            validateOutput: false
-            input {
-                copy `headerJson` -> `inString`;
-                set `searchString` = "[}]$";
-                set `replaceString` = "";
-                set `useRegex` = "true";
-            }
-            output {
-                mapTarget {
-                    String headerJson;
+                output {
+                    mapTarget {
+                        String requestId;
+                    }
+                    copy `value` -> `requestId`;
+                    drop `value`;
+                    drop `inString`;
+                    drop `searchString`;
+                    drop `replaceString`;
+                    drop `useRegex`;
                 }
-                copy `value` -> `headerJson`;
-                drop `value`;
-                drop `inString`;
-                drop `searchString`;
-                drop `replaceString`;
-                drop `useRegex`;
             }
-        }
-        MAP {
-            mapTarget {
-                String jsonTail;
-            }
-            set (variable) `jsonTail` = ",\"isBlockedForPosting\":%isBlocked%,\"texts\":[%textsJson%],\"companyCodeAssignments\":[%assignmentsJson%]}";
-        }
-        INVOKE pub.string:concat {
-            validateInput: false
-            validateOutput: false
-            input {
-                copy `headerJson` -> `inString1`;
-                copy `jsonTail` -> `inString2`;
-            }
-            output {
-                mapTarget {
-                    String requestJson;
+            INVOKE pub.string:replace {
+                validateInput: false
+                validateOutput: false
+                input {
+                    copy `requestStatus` -> `inString`;
+                    set `searchString` = "^%[^%]*%$";
+                    set `replaceString` = "";
+                    set `useRegex` = "true";
                 }
-                copy `value` -> `requestJson`;
-                drop `value`;
-                drop `inString1`;
-                drop `inString2`;
-                drop `headerJson`;
-                drop `jsonTail`;
-            }
-        }
-        MAP {
-            mapTarget {
-                record requestHeaders {
-                    allowUnspecifiedFields: true;
-                } {
-                    String Content-Type;
-                    String Accept;
-                    String Idempotency-Key;
-                    String X-Correlation-ID;
-                };
-            }
-            set `requestHeaders`/`Content-Type` = "application/json";
-            set `requestHeaders`/`Accept` = "application/json";
-            set (variable) `requestHeaders`/`Idempotency-Key` = "%sapCanonical/meta/globalMasterId%:%versionStr%";
-            set (variable) `requestHeaders`/`X-Correlation-ID` = "%sapCanonical/meta/correlationId%";
-        }
-        INVOKE pub.client:http {
-            validateInput: false
-            validateOutput: false
-            input {
-                set `url` = "http://68.221.160.79:5002/sap/api/v1/gl-accounts";
-                set `method` = "post";
-                set `timeout` = "30000";
-                copy `requestJson` -> `data`/`string`;
-                set `data`/`encoding` = "UTF-8";
-                copy `requestHeaders`/`Content-Type` -> `headers`/`Content-Type`;
-                copy `requestHeaders`/`Accept` -> `headers`/`Accept`;
-                copy `requestHeaders`/`Idempotency-Key` -> `headers`/`Idempotency-Key`;
-                copy `requestHeaders`/`X-Correlation-ID` -> `headers`/`X-Correlation-ID`;
-            }
-        }
-        INVOKE pub.string:bytesToString {
-            validateInput: false
-            validateOutput: false
-            input {
-                mapTarget {
-                    String encoding;
+                output {
+                    mapTarget {
+                        String requestStatus;
+                    }
+                    copy `value` -> `requestStatus`;
+                    drop `value`;
+                    drop `inString`;
+                    drop `searchString`;
+                    drop `replaceString`;
+                    drop `useRegex`;
                 }
-                copy `body`/`bytes` -> `bytes`;
-                set `encoding` = "UTF-8";
             }
-            output {
-                mapTarget {
-                    String responseString;
+            INVOKE pub.string:replace {
+                validateInput: false
+                validateOutput: false
+                input {
+                    copy `errorMessage` -> `inString`;
+                    set `searchString` = "^%[^%]*%$";
+                    set `replaceString` = "";
+                    set `useRegex` = "true";
                 }
-                copy `string` -> `responseString`;
+                output {
+                    mapTarget {
+                        String errorMessage;
+                    }
+                    copy `value` -> `errorMessage`;
+                    drop `value`;
+                    drop `inString`;
+                    drop `searchString`;
+                    drop `replaceString`;
+                    drop `useRegex`;
+                }
+            }
+            IF (httpStatus=="202"||httpStatus=="200") {
+                MAP {
+                    mapTarget {
+                        record pollHeaders {
+                            allowUnspecifiedFields: true;
+                        } {
+                            String Accept;
+                            String X-Correlation-ID;
+                        };
+                    }
+                    set `pollHeaders`/`Accept` = "application/json";
+                    set (variable) `pollHeaders`/`X-Correlation-ID` = "%sapCanonical/meta/correlationId%";
+                }
+                REPEAT {
+                    count: 10
+                    repeatInterval: 2
+                    SEQUENCE {
+                        label: "pollAttempt"
+                        INVOKE pub.client:http {
+                            validateInput: false
+                            validateOutput: false
+                            input {
+                                mapTarget {
+                                    String url;
+                                    String method;
+                                }
+                                set (variable) `url` = "http://68.221.160.79:5002/sap/api/v1/requests/%requestId%";
+                                set `method` = "get";
+                                set `timeout` = "30000";
+                                copy `pollHeaders` -> `headers`;
+                            }
+                        }
+                        INVOKE pub.string:bytesToString {
+                            validateInput: false
+                            validateOutput: false
+                            input {
+                                mapTarget {
+                                    String encoding;
+                                }
+                                copy `body`/`bytes` -> `bytes`;
+                                set `encoding` = "UTF-8";
+                            }
+                            output {
+                                mapTarget {
+                                    String responseString;
+                                }
+                                copy `string` -> `responseString`;
+                                drop `string`;
+                                drop `bytes`;
+                                drop `encoding`;
+                            }
+                        }
+                        INVOKE pub.json:jsonStringToDocument {
+                            validateInput: false
+                            validateOutput: false
+                            input {
+                                copy `responseString` -> `jsonString`;
+                            }
+                        }
+                        MAP {
+                            mapTarget {
+                                String requestStatus;
+                                String sapObjectId;
+                            }
+                            set (variable) `requestStatus` = "%document/status%";
+                            set (variable) `sapObjectId` = "%document/sapObjectId%";
+                            drop `document`;
+                            drop `jsonString`;
+                            drop `responseString`;
+                            drop `body`;
+                            drop `header`;
+                            drop `headers`;
+                            drop `url`;
+                            drop `method`;
+                            drop `encodedURL`;
+                        }
+                        IF (requestStatus!="APPLIED"&&requestStatus!="REJECTED") {
+                            EXIT {
+                                exitFrom: "pollAttempt"
+                                signal: "FAILURE"
+                                failureMessage: "Requisicao SAP ainda nao concluida"
+                            }
+                        }
+                    }
+                }
+                INVOKE pub.string:replace {
+                    validateInput: false
+                    validateOutput: false
+                    input {
+                        copy `sapObjectId` -> `inString`;
+                        set `searchString` = "^%[^%]*%$";
+                        set `replaceString` = "";
+                        set `useRegex` = "true";
+                    }
+                    output {
+                        mapTarget {
+                            String sapObjectId;
+                        }
+                        copy `value` -> `sapObjectId`;
+                        drop `value`;
+                        drop `inString`;
+                        drop `searchString`;
+                        drop `replaceString`;
+                        drop `useRegex`;
+                    }
+                }
+                MAP {
+                    mapTarget {
+                        String publicationStatus;
+                        String errorMessage;
+                    }
+                    set (variable) `publicationStatus` = "%requestStatus%";
+                    set `errorMessage` = "";
+                    drop `pollHeaders`;
+                }
+            } ELSE {
+                IF (httpStatus=="400"||httpStatus=="422") {
+                    MAP {
+                        mapTarget {
+                            String publicationStatus;
+                        }
+                        set `publicationStatus` = "REJECTED";
+                    }
+                }
             }
         }
-        INVOKE pub.json:jsonStringToDocument {
-            validateInput: false
-            validateOutput: false
-            input {
-                copy `responseString` -> `jsonString`;
+        IF (publicationStatus!=$null) {
+            INVOKE pub.datetime:build {
+                validateInput: false
+                validateOutput: false
+                input {
+                    mapTarget {
+                        String `pattern`;
+                        String timezone;
+                    }
+                    set `pattern` = "yyyy-MM-dd'T'HH:mm:ss'Z'";
+                    set `timezone` = "UTC";
+                }
+                output {
+                    mapTarget {
+                        String confirmedAt;
+                    }
+                    copy `value` -> `confirmedAt`;
+                    drop `value`;
+                    drop `pattern`;
+                    drop `timezone`;
+                }
             }
-        }
-        MAP {
-            copy `header`/`status` -> `httpStatus`;
-            set (variable) `requestId` = "%document/requestId%";
-            set (variable) `requestStatus` = "%document/status%";
-            set (variable) `errorMessage` = "%document/error/message%";
+            MAP {
+                mapTarget {
+                    record i3Headers {
+                        allowUnspecifiedFields: true;
+                    } {
+                        String Content-Type;
+                        String Accept;
+                        String X-Correlation-ID;
+                    };
+                }
+                set `i3Headers`/`Content-Type` = "application/json";
+                set `i3Headers`/`Accept` = "application/json";
+                set (variable) `i3Headers`/`X-Correlation-ID` = "%sapCanonical/meta/correlationId%";
+            }
+            MAP {
+                mapTarget {
+                    String i3Json;
+                }
+                set (variable) `i3Json` = "@{\"stepId\":\"%sapCanonical/meta/globalMasterId%\",\"version\":%versionStr%,\"target\":\"SAP\",\"status\":\"%publicationStatus%\",\"targetObjectId\":\"%sapObjectId%\",\"correlationId\":\"%sapCanonical/meta/correlationId%\",\"confirmedAt\":\"%confirmedAt%\"}";
+                drop `confirmedAt`;
+            }
+            INVOKE pub.string:replace {
+                validateInput: false
+                validateOutput: false
+                input {
+                    copy `i3Json` -> `inString`;
+                    set `searchString` = "^@";
+                    set `replaceString` = "";
+                    set `useRegex` = "true";
+                }
+                output {
+                    mapTarget {
+                        String i3Json;
+                    }
+                    copy `value` -> `i3Json`;
+                    drop `value`;
+                    drop `inString`;
+                    drop `searchString`;
+                    drop `replaceString`;
+                    drop `useRegex`;
+                }
+            }
+            TRY {
+                INVOKE pub.client:http {
+                    validateInput: false
+                    validateOutput: false
+                    input {
+                        set `url` = "http://68.221.160.79/step/api/v1/publication-status";
+                        set `method` = "post";
+                        set `timeout` = "30000";
+                        copy `i3Json` -> `data`/`string`;
+                        set `data`/`encoding` = "UTF-8";
+                        copy `i3Headers` -> `headers`;
+                    }
+                }
+                MAP {
+                    mapSource {
+                        record header;
+                    }
+                    mapTarget {
+                        String i3HttpStatus;
+                    }
+                    copy `header`/`status` -> `i3HttpStatus`;
+                    drop `body`;
+                    drop `header`;
+                    drop `data`;
+                    drop `headers`;
+                    drop `url`;
+                    drop `method`;
+                    drop `encodedURL`;
+                    drop `i3Headers`;
+                    drop `i3Json`;
+                }
+            } CATCH {
+                MAP {
+                    mapTarget {
+                        String i3HttpStatus;
+                    }
+                    set `i3HttpStatus` = "ERROR";
+                }
+            }
         }
     } CATCH {
         INVOKE pub.flow:getLastError {
@@ -514,3 +879,4 @@ properties {
         }
     }
 }
+

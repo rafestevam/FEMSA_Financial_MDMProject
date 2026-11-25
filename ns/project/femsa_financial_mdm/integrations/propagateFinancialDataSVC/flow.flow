@@ -10,7 +10,8 @@ service propagateFinancialDataSVC (
         String callbackStatus;
         String errorCode;
         String errorMessage;
-        String failMessage;
+        String httpCode;
+        String errorDump;
     }
 )
 properties {
@@ -44,418 +45,66 @@ properties {
     validateOutput: false;
 }
 {
-    SEQUENCE {
-        label: "NEW"
-        INVOKE pub.flow:debugLog {
-            validateInput: false
-            validateOutput: false
-            input {
-                mapTarget {
-                    String message;
-                    String function;
-                    String level;
-                }
-                set `message` = "Empezando el mapeo en Mexico";
-                set `function` = "project.femsa_financial_mdm.integrations:propagateFinancialDataSVC";
-                set `level` = "Info";
-            }
-            output {
-                drop `message`;
-                drop `function`;
-                drop `level`;
-            }
-        }
-        INVOKE pub.json:jsonToDocument {
-            validateInput: false
-            validateOutput: false
-            input {
-                mapTarget {
-                    String documentTypeName;
-                }
-                copy `jsonPayload` -> `jsonData`;
-                set `documentTypeName` = "project.femsa_financial_mdm.documenttypes:financialApprovedDT";
-            }
-            output {
-                mapTarget {
-                    record financialApproved {
-                        allowUnspecifiedFields: true;
-                    };
-                }
-                copy `document` -> `financialApproved`;
-                drop `jsonPayload`;
-                drop `document`;
-                drop `jsonData`;
-                drop `documentTypeName`;
-            }
-        }
-        INVOKE pub.json:documentToJSONString {
-            validateInput: false
-            validateOutput: false
-            input {
-                copy `financialApproved` -> `document`;
-            }
-            output {
-                mapTarget {
-                    String versionStr;
-                }
-                copy `jsonString` -> `versionStr`;
-                drop `jsonString`;
-                drop `document`;
-            }
-        }
-        INVOKE pub.string:replace {
-            validateInput: false
-            validateOutput: false
-            input {
-                copy `versionStr` -> `inString`;
-                set `searchString` = "^(?!.*.version.:[0-9]).*$";
-                set `replaceString` = "";
-                set `useRegex` = "true";
-            }
-            output {
-                mapTarget {
-                    String versionStr;
-                }
-                copy `value` -> `versionStr`;
-                drop `value`;
-                drop `inString`;
-                drop `searchString`;
-                drop `replaceString`;
-                drop `useRegex`;
-            }
-        }
-        INVOKE pub.string:replace {
-            validateInput: false
-            validateOutput: false
-            input {
-                copy `versionStr` -> `inString`;
-                set `searchString` = "^.*.version.:([0-9]+).*$";
-                set `replaceString` = "$1";
-                set `useRegex` = "true";
-            }
-            output {
-                mapTarget {
-                    String versionStr;
-                }
-                copy `value` -> `versionStr`;
-                drop `value`;
-                drop `inString`;
-                drop `searchString`;
-                drop `replaceString`;
-                drop `useRegex`;
-            }
-        }
-        INVOKE pub.json:documentToJSONString {
-            validateInput: false
-            validateOutput: false
-            input {
-                copy `financialApproved`/`masterData`/`account`/`description` -> `document`;
-            }
-            output {
-                mapTarget {
-                    String descriptionsJson;
-                }
-                copy `jsonString` -> `descriptionsJson`;
-                drop `jsonString`;
-                drop `document`;
-            }
-        }
-        INVOKE pub.string:replace {
-            validateInput: false
-            validateOutput: false
-            input {
-                copy `descriptionsJson` -> `inString`;
-                set `searchString` = "([{,]).([a-zA-Z-]+).:.(.*?).(?=,.[a-zA-Z-]+.:|[}]$)";
-                set `replaceString` = "$1{\"language\":\"$2\",\"value\":\"$3\"}";
-                set `useRegex` = "true";
-            }
-            output {
-                mapTarget {
-                    String descriptionsJson;
-                }
-                copy `value` -> `descriptionsJson`;
-                drop `value`;
-                drop `inString`;
-                drop `searchString`;
-                drop `replaceString`;
-                drop `useRegex`;
-            }
-        }
-        INVOKE pub.string:replace {
-            validateInput: false
-            validateOutput: false
-            input {
-                copy `descriptionsJson` -> `inString`;
-                set `searchString` = "^[{](.*)[}]$";
-                set `replaceString` = "$1";
-                set `useRegex` = "true";
-            }
-            output {
-                mapTarget {
-                    String descriptionsJson;
-                }
-                copy `value` -> `descriptionsJson`;
-                drop `value`;
-                drop `inString`;
-                drop `searchString`;
-                drop `replaceString`;
-                drop `useRegex`;
-            }
-        }
-        MAP {
-            drop `toList`;
-        }
-        LOOP {
-            inputArray: "/financialApproved/masterData/organizationalAssignments"
-            maxThreads: "1"
-            parallelErrorHandling: "reportError"
+    TRY {
+        SEQUENCE {
+            label: "mainFlow"
             MAP {
-                mapTarget {
-                    record assignmentItem {
-                        allowUnspecifiedFields: true;
-                    } {
-                        String legalEntity;
-                        String companyCode;
-                    };
+                drop `httpCode`;
+                drop `errorDump`;
+                drop `failMessage`;
+            }
+            INVOKE pub.flow:debugLog {
+                validateInput: false
+                validateOutput: false
+                input {
+                    mapTarget {
+                        String message;
+                        String function;
+                        String level;
+                    }
+                    set `message` = "Empezando el mapeo en Mexico";
+                    set `function` = "project.femsa_financial_mdm.integrations:propagateFinancialDataSVC";
+                    set `level` = "Info";
                 }
-                set (variable) `assignmentItem`/`legalEntity` = "%financialApproved/masterData/organizationalAssignments/legalEntity%";
-                set (variable) `assignmentItem`/`companyCode` = "%financialApproved/masterData/organizationalAssignments/companyCode%";
+                output {
+                    drop `message`;
+                    drop `function`;
+                    drop `level`;
+                }
+            }
+            INVOKE pub.json:jsonToDocument {
+                validateInput: false
+                validateOutput: false
+                input {
+                    copy `jsonPayload` -> `jsonData`;
+                    set `documentTypeName` = "project.femsa_financial_mdm.documenttypes:financialApprovedDT";
+                }
+                output {
+                    mapTarget {
+                        record financialApproved {
+                            allowUnspecifiedFields: true;
+                        };
+                    }
+                    copy `document` -> `financialApproved`;
+                    drop `jsonPayload`;
+                    drop `document`;
+                    drop `jsonData`;
+                    drop `documentTypeName`;
+                }
             }
             INVOKE pub.json:documentToJSONString {
                 validateInput: false
                 validateOutput: false
                 input {
-                    copy `assignmentItem` -> `document`;
+                    copy `financialApproved` -> `document`;
                 }
                 output {
                     mapTarget {
-                        String itemJson;
+                        String versionStr;
                     }
-                    copy `jsonString` -> `itemJson`;
-                    drop `document`;
+                    copy `jsonString` -> `versionStr`;
                     drop `jsonString`;
-                }
-            }
-            INVOKE pub.list:appendToStringList {
-                validateInput: false
-                validateOutput: false
-                input {
-                    copy `itemJson` -> `fromItem`;
-                }
-                output {
-                    drop `fromItem`;
-                    drop `itemJson`;
-                    drop `assignmentItem`;
-                }
-            }
-        }
-        IF (toList==$null) {
-            MAP {
-                mapTarget {
-                    String assignmentsJson;
-                }
-                set `assignmentsJson` = "";
-            }
-        } ELSE {
-            INVOKE pub.string:makeString {
-                validateInput: false
-                validateOutput: false
-                input {
-                    copy `toList` -> `elementList`;
-                    set `separator` = ",";
-                }
-                output {
-                    mapTarget {
-                        String assignmentsJson;
-                    }
-                    copy `value` -> `assignmentsJson`;
-                    drop `value`;
-                    drop `toList`;
-                    drop `elementList`;
-                    drop `separator`;
-                }
-            }
-        }
-        MAP {
-            drop `toList`;
-        }
-        MAP {
-            mapTarget {
-                String canonicalJson;
-            }
-            set (variable) `canonicalJson` = "@{\"meta\":{\"globalMasterId\":\"%financialApproved/masterData/stepId%\",\"version\":%versionStr%,\"correlationId\":\"%financialApproved/correlationId%\",\"eventType\":\"MASTER_DATA_CHANGED\",\"sourceSystem\":\"STIBO_STEP\",\"sourceEventId\":\"%financialApproved/eventId%\",\"occurredAt\":\"%financialApproved/occurredAt%\"},\"financialMaster\":{\"type\":\"%financialApproved/masterData/objectType%\",\"code\":\"%financialApproved/masterData/account/code%\",\"status\":\"%financialApproved/masterData/status%\",\"validFrom\":\"%financialApproved/masterData/effectiveDate%\",\"chartOfAccounts\":\"%financialApproved/masterData/chartOfAccounts/code%\",\"accountType\":\"%financialApproved/masterData/account/accountType%\",\"groupAccount\":\"%financialApproved/masterData/account/groupAccount%\",\"costCategory\":\"%financialApproved/masterData/account/costCategory%\",\"descriptions\":[%descriptionsJson%],\"assignments\":[%assignmentsJson%],\"dependencies\":[{\"type\":\"CHART_OF_ACCOUNTS\",\"globalMasterId\":\"%financialApproved/masterData/chartOfAccounts/stepId%\",\"code\":\"%financialApproved/masterData/chartOfAccounts/code%\"}]}}";
-            drop `descriptionsJson`;
-            drop `assignmentsJson`;
-        }
-        INVOKE pub.string:replace {
-            validateInput: false
-            validateOutput: false
-            input {
-                copy `canonicalJson` -> `inString`;
-                set `searchString` = "^@";
-                set `replaceString` = "";
-                set `useRegex` = "true";
-            }
-            output {
-                mapTarget {
-                    String canonicalJson;
-                }
-                copy `value` -> `canonicalJson`;
-                drop `value`;
-                drop `inString`;
-                drop `searchString`;
-                drop `replaceString`;
-                drop `useRegex`;
-            }
-        }
-        INVOKE pub.json:jsonStringToDocument {
-            validateInput: false
-            validateOutput: false
-            input {
-                copy `canonicalJson` -> `jsonString`;
-            }
-            output {
-                mapSource {
-                    String canonicalJson;
-                }
-                mapTarget {
-                    record sapCanonical {
-                        allowUnspecifiedFields: true;
-                    };
-                    String jsonCanonical;
-                }
-                copy `document` -> `sapCanonical`;
-                copy `canonicalJson` -> `jsonCanonical`;
-                drop `document`;
-                drop `jsonString`;
-                drop `canonicalJson`;
-                drop `financialApproved`;
-            }
-        }
-        INVOKE project.femsa_financial_mdm.integrations:postGLAccount {
-            validateInput: false
-            validateOutput: false
-        }
-        IF (publicationStatus=="APPLIED") {
-            MAP {
-                mapTarget {
-                    String callbackStatus;
-                }
-                set `callbackStatus` = "APPLIED";
-            }
-        } ELSE {
-            IF (publicationStatus=="REJECTED") {
-                MAP {
-                    mapTarget {
-                        String callbackStatus;
-                    }
-                    set `callbackStatus` = "REJECTED";
-                }
-            } ELSE {
-                MAP {
-                    mapTarget {
-                        String callbackStatus;
-                    }
-                    set `callbackStatus` = "QUARANTINED";
-                }
-            }
-        }
-        INVOKE pub.datetime:build {
-            validateInput: false
-            validateOutput: false
-            input {
-                mapTarget {
-                    String `pattern`;
-                    String timezone;
-                }
-                set `pattern` = "yyyy-MM-dd'T'HH:mm:ss'Z'";
-                set `timezone` = "UTC";
-            }
-            output {
-                mapTarget {
-                    String confirmedAt;
-                }
-                copy `value` -> `confirmedAt`;
-                drop `value`;
-                drop `pattern`;
-                drop `timezone`;
-            }
-        }
-        MAP {
-            mapTarget {
-                String callbackJson;
-                record callbackHeaders {
-                    allowUnspecifiedFields: true;
-                } {
-                    String Content-Type;
-                };
-            }
-            set (variable) `callbackJson` = "@{\"stepId\":\"%sapCanonical/meta/globalMasterId%\",\"version\":%versionStr%,\"target\":\"SAP\",\"status\":\"%callbackStatus%\",\"targetObjectId\":\"%sapObjectId%\",\"targetRequestId\":\"%requestId%\",\"correlationId\":\"%sapCanonical/meta/correlationId%\",\"confirmedAt\":\"%confirmedAt%\"}";
-            set `callbackHeaders`/`Content-Type` = "application/json";
-            drop `confirmedAt`;
-        }
-        INVOKE pub.string:replace {
-            validateInput: false
-            validateOutput: false
-            input {
-                copy `callbackJson` -> `inString`;
-                set `searchString` = "^@";
-                set `replaceString` = "";
-                set `useRegex` = "true";
-            }
-            output {
-                mapTarget {
-                    String callbackJson;
-                }
-                copy `value` -> `callbackJson`;
-                drop `value`;
-                drop `inString`;
-                drop `searchString`;
-                drop `replaceString`;
-                drop `useRegex`;
-            }
-        }
-        INVOKE pub.string:replace {
-            validateInput: false
-            validateOutput: false
-            input {
-                copy `callbackJson` -> `inString`;
-                set `searchString` = "%[^%\"]*%";
-                set `replaceString` = "";
-                set `useRegex` = "true";
-            }
-            output {
-                mapTarget {
-                    String callbackJson;
-                }
-                copy `value` -> `callbackJson`;
-                drop `value`;
-                drop `inString`;
-                drop `searchString`;
-                drop `replaceString`;
-                drop `useRegex`;
-            }
-        }
-        IF (errorMessage!=$null&&errorMessage!="") {
-            INVOKE pub.string:replace {
-                validateInput: false
-                validateOutput: false
-                input {
-                    copy `errorCode` -> `inString`;
-                    set `searchString` = "([\"\\\\])";
-                    set `replaceString` = "\\\\$1";
-                    set `useRegex` = "true";
-                }
-                output {
-                    mapTarget {
-                        String errorCode;
-                    }
-                    copy `value` -> `errorCode`;
-                    drop `value`;
-                    drop `inString`;
-                    drop `searchString`;
-                    drop `replaceString`;
-                    drop `useRegex`;
+                    drop `document`;
                 }
             }
             INVOKE pub.string:replace {
@@ -467,100 +116,16 @@ properties {
                         String replaceString;
                         String useRegex;
                     }
-                    copy `errorCode` -> `inString`;
-                    set `searchString` = "\\p{Cntrl}";
-                    set `replaceString` = " ";
-                    set `useRegex` = "true";
-                }
-                output {
-                    mapTarget {
-                        String errorCode;
-                    }
-                    copy `value` -> `errorCode`;
-                    drop `value`;
-                    drop `inString`;
-                    drop `searchString`;
-                    drop `replaceString`;
-                    drop `useRegex`;
-                }
-            }
-            INVOKE pub.string:replace {
-                validateInput: false
-                validateOutput: false
-                input {
-                    mapTarget {
-                        String searchString;
-                        String replaceString;
-                        String useRegex;
-                    }
-                    copy `errorMessage` -> `inString`;
-                    set `searchString` = "([\"\\\\])";
-                    set `replaceString` = "\\\\$1";
-                    set `useRegex` = "true";
-                }
-                output {
-                    mapTarget {
-                        String errorMessage;
-                    }
-                    copy `value` -> `errorMessage`;
-                    drop `value`;
-                    drop `inString`;
-                    drop `searchString`;
-                    drop `replaceString`;
-                    drop `useRegex`;
-                }
-            }
-            INVOKE pub.string:replace {
-                validateInput: false
-                validateOutput: false
-                input {
-                    mapTarget {
-                        String searchString;
-                        String replaceString;
-                        String useRegex;
-                    }
-                    copy `errorMessage` -> `inString`;
-                    set `searchString` = "\\p{Cntrl}";
-                    set `replaceString` = " ";
-                    set `useRegex` = "true";
-                }
-                output {
-                    mapTarget {
-                        String errorMessage;
-                    }
-                    copy `value` -> `errorMessage`;
-                    drop `value`;
-                    drop `inString`;
-                    drop `searchString`;
-                    drop `replaceString`;
-                    drop `useRegex`;
-                }
-            }
-            MAP {
-                mapTarget {
-                    String errorTail;
-                }
-                set (variable) `errorTail` = ",\"error\":{\"code\":\"%errorCode%\",\"message\":\"%errorMessage%\"}}";
-            }
-            INVOKE pub.string:replace {
-                validateInput: false
-                validateOutput: false
-                input {
-                    mapTarget {
-                        String searchString;
-                        String replaceString;
-                        String useRegex;
-                    }
-                    copy `errorTail` -> `inString`;
-                    set `searchString` = "%errorCode%";
+                    copy `versionStr` -> `inString`;
+                    set `searchString` = "^(?!.*.version.:[0-9]).*$";
                     set `replaceString` = "";
                     set `useRegex` = "true";
                 }
                 output {
                     mapTarget {
-                        String errorTail;
+                        String versionStr;
                     }
-                    copy `value` -> `errorTail`;
+                    copy `value` -> `versionStr`;
                     drop `value`;
                     drop `inString`;
                     drop `searchString`;
@@ -572,229 +137,747 @@ properties {
                 validateInput: false
                 validateOutput: false
                 input {
-                    mapTarget {
-                        String searchString;
-                        String replaceString;
-                        String useRegex;
-                    }
-                    copy `callbackJson` -> `inString`;
-                    set `searchString` = "[}]$";
-                    set `replaceString` = "";
-                    set `useRegex` = "true";
-                }
-                output {
-                    mapTarget {
-                        String callbackJson;
-                    }
-                    copy `value` -> `callbackJson`;
-                    drop `value`;
-                    drop `inString`;
-                    drop `searchString`;
-                    drop `replaceString`;
-                    drop `useRegex`;
-                }
-            }
-            INVOKE pub.string:concat {
-                validateInput: false
-                validateOutput: false
-                input {
-                    copy `callbackJson` -> `inString1`;
-                    copy `errorTail` -> `inString2`;
-                }
-                output {
-                    mapTarget {
-                        String callbackJson;
-                    }
-                    copy `value` -> `callbackJson`;
-                    drop `value`;
-                    drop `inString1`;
-                    drop `inString2`;
-                    drop `errorTail`;
-                }
-            }
-        }
-        TRY {
-            INVOKE pub.client:http {
-                validateInput: false
-                validateOutput: false
-                input {
-                    set `url` = "http://158.23.160.94/step/api/v1/publication-status";
-                    set `method` = "post";
-                    set `timeout` = "30000";
-                    copy `callbackJson` -> `data`/`string`;
-                    set `data`/`encoding` = "UTF-8";
-                    copy `callbackHeaders` -> `headers`;
-                }
-            }
-            MAP {
-                mapSource {
-                    record header;
-                }
-                mapTarget {
-                    String i3HttpStatus;
-                }
-                copy `header`/`status` -> `i3HttpStatus`;
-                drop `body`;
-                drop `header`;
-                drop `data`;
-                drop `headers`;
-                drop `url`;
-                drop `method`;
-                drop `timeout`;
-                drop `encodedURL`;
-            }
-        } CATCH {
-            INVOKE pub.flow:getLastError {
-                validateInput: false
-                validateOutput: false
-            }
-            MAP {
-                mapTarget {
-                    String i3Error;
-                }
-                set (variable) `i3Error` = "%lastError/error%";
-                drop `body`;
-                drop `header`;
-                drop `data`;
-                drop `headers`;
-                drop `url`;
-                drop `method`;
-                drop `timeout`;
-                drop `encodedURL`;
-            }
-            INVOKE pub.string:replace {
-                validateInput: false
-                validateOutput: false
-                input {
-                    copy `i3Error` -> `inString`;
-                    set `searchString` = "(?s)^.*ISC[.]0064[.]9314.*$";
-                    set `replaceString` = "401";
-                    set `useRegex` = "true";
-                }
-                output {
-                    mapTarget {
-                        String i3Error;
-                    }
-                    copy `value` -> `i3Error`;
-                    drop `value`;
-                    drop `inString`;
-                    drop `searchString`;
-                    drop `replaceString`;
-                    drop `useRegex`;
-                }
-            }
-            INVOKE pub.string:replace {
-                validateInput: false
-                validateOutput: false
-                input {
-                    copy `i3Error` -> `inString`;
-                    set `searchString` = "(?s)^(?:(?:.*?[^0-9])?([45][0-9]{2})(?![0-9]).*|.*)$";
+                    copy `versionStr` -> `inString`;
+                    set `searchString` = "^.*.version.:([0-9]+).*$";
                     set `replaceString` = "$1";
                     set `useRegex` = "true";
                 }
                 output {
                     mapTarget {
-                        String i3HttpStatus;
+                        String versionStr;
                     }
-                    copy `value` -> `i3HttpStatus`;
+                    copy `value` -> `versionStr`;
                     drop `value`;
                     drop `inString`;
                     drop `searchString`;
                     drop `replaceString`;
                     drop `useRegex`;
-                    drop `i3Error`;
                 }
             }
-            IF (i3HttpStatus==$null||i3HttpStatus=="") {
-                MAP {
+            INVOKE pub.json:documentToJSONString {
+                validateInput: false
+                validateOutput: false
+                input {
+                    copy `financialApproved`/`masterData`/`account`/`description` -> `document`;
+                }
+                output {
                     mapTarget {
-                        String i3HttpStatus;
+                        String descriptionsJson;
                     }
-                    set `i3HttpStatus` = "ERROR";
+                    copy `jsonString` -> `descriptionsJson`;
+                    drop `jsonString`;
+                    drop `document`;
                 }
-            }
-        }
-        INVOKE pub.flow:debugLog {
-            validateInput: false
-            validateOutput: false
-            input {
-                mapTarget {
-                    String message;
-                    String function;
-                    String level;
-                }
-                set (variable) `message` = "Callback I3 SAP %callbackStatus% -> HTTP %i3HttpStatus%: %callbackJson%";
-                set `function` = "project.femsa_financial_mdm.integrations:propagateFinancialDataSVC";
-                set `level` = "Info";
-            }
-            output {
-                drop `message`;
-                drop `function`;
-                drop `level`;
-            }
-        }
-        MAP {
-            mapTarget {
-                String httpErrorStatus;
-            }
-            set (variable) `httpErrorStatus` = "%httpStatus%";
-        }
-        INVOKE pub.string:replace {
-            validateInput: false
-            validateOutput: false
-            input {
-                copy `httpErrorStatus` -> `inString`;
-                set `searchString` = "^(?:(4(?:0[1-9]|[1-9][0-9])|5[0-9][0-9])|.*)$";
-                set `replaceString` = "$1";
-                set `useRegex` = "true";
-            }
-            output {
-                mapTarget {
-                    String httpErrorStatus;
-                }
-                copy `value` -> `httpErrorStatus`;
-                drop `value`;
-                drop `inString`;
-                drop `searchString`;
-                drop `replaceString`;
-                drop `useRegex`;
-            }
-        }
-        IF (errorCode=="WM_EXCEPTION"||httpErrorStatus!="") {
-            MAP {
-                mapTarget {
-                    String failMessage;
-                }
-                set (variable) `failMessage` = "Falha na publicacao SAP %sapCanonical/meta/globalMasterId% (callback %callbackStatus%, HTTP %httpStatus%, codigo %errorCode%): %errorMessage%";
             }
             INVOKE pub.string:replace {
                 validateInput: false
                 validateOutput: false
                 input {
-                    copy `failMessage` -> `inString`;
-                    set `searchString` = "%[^% ]*%";
-                    set `replaceString` = "";
+                    copy `descriptionsJson` -> `inString`;
+                    set `searchString` = "([{,]).([a-zA-Z-]+).:.(.*?).(?=,.[a-zA-Z-]+.:|[}]$)";
+                    set `replaceString` = "$1{\"language\":\"$2\",\"value\":\"$3\"}";
                     set `useRegex` = "true";
                 }
                 output {
                     mapTarget {
-                        String failMessage;
+                        String descriptionsJson;
                     }
-                    copy `value` -> `failMessage`;
+                    copy `value` -> `descriptionsJson`;
                     drop `value`;
                     drop `inString`;
                     drop `searchString`;
                     drop `replaceString`;
                     drop `useRegex`;
+                }
+            }
+            INVOKE pub.string:replace {
+                validateInput: false
+                validateOutput: false
+                input {
+                    copy `descriptionsJson` -> `inString`;
+                    set `searchString` = "^[{](.*)[}]$";
+                    set `replaceString` = "$1";
+                    set `useRegex` = "true";
+                }
+                output {
+                    mapTarget {
+                        String descriptionsJson;
+                    }
+                    copy `value` -> `descriptionsJson`;
+                    drop `value`;
+                    drop `inString`;
+                    drop `searchString`;
+                    drop `replaceString`;
+                    drop `useRegex`;
+                }
+            }
+            MAP {
+                drop `toList`;
+            }
+            LOOP {
+                inputArray: "/financialApproved/masterData/organizationalAssignments"
+                maxThreads: "1"
+                parallelErrorHandling: "reportError"
+                MAP {
+                    mapTarget {
+                        record assignmentItem {
+                            allowUnspecifiedFields: true;
+                        } {
+                            String legalEntity;
+                            String companyCode;
+                        };
+                    }
+                    set (variable) `assignmentItem`/`legalEntity` = "%financialApproved/masterData/organizationalAssignments/legalEntity%";
+                    set (variable) `assignmentItem`/`companyCode` = "%financialApproved/masterData/organizationalAssignments/companyCode%";
+                }
+                INVOKE pub.json:documentToJSONString {
+                    validateInput: false
+                    validateOutput: false
+                    input {
+                        copy `assignmentItem` -> `document`;
+                    }
+                    output {
+                        mapTarget {
+                            String itemJson;
+                        }
+                        copy `jsonString` -> `itemJson`;
+                        drop `document`;
+                        drop `jsonString`;
+                    }
+                }
+                INVOKE pub.list:appendToStringList {
+                    validateInput: false
+                    validateOutput: false
+                    input {
+                        copy `itemJson` -> `fromItem`;
+                    }
+                    output {
+                        drop `fromItem`;
+                        drop `itemJson`;
+                        drop `assignmentItem`;
+                    }
+                }
+            }
+            IF (toList==$null) {
+                MAP {
+                    mapTarget {
+                        String assignmentsJson;
+                    }
+                    set `assignmentsJson` = "";
+                }
+            } ELSE {
+                INVOKE pub.string:makeString {
+                    validateInput: false
+                    validateOutput: false
+                    input {
+                        mapTarget {
+                            String separator;
+                        }
+                        copy `toList` -> `elementList`;
+                        set `separator` = ",";
+                    }
+                    output {
+                        mapTarget {
+                            String assignmentsJson;
+                        }
+                        copy `value` -> `assignmentsJson`;
+                        drop `value`;
+                        drop `toList`;
+                        drop `elementList`;
+                        drop `separator`;
+                    }
+                }
+            }
+            MAP {
+                drop `toList`;
+            }
+            MAP {
+                mapTarget {
+                    String canonicalJson;
+                }
+                set (variable) `canonicalJson` = "@{\"meta\":{\"globalMasterId\":\"%financialApproved/masterData/stepId%\",\"version\":%versionStr%,\"correlationId\":\"%financialApproved/correlationId%\",\"eventType\":\"MASTER_DATA_CHANGED\",\"sourceSystem\":\"STIBO_STEP\",\"sourceEventId\":\"%financialApproved/eventId%\",\"occurredAt\":\"%financialApproved/occurredAt%\"},\"financialMaster\":{\"type\":\"%financialApproved/masterData/objectType%\",\"code\":\"%financialApproved/masterData/account/code%\",\"status\":\"%financialApproved/masterData/status%\",\"validFrom\":\"%financialApproved/masterData/effectiveDate%\",\"chartOfAccounts\":\"%financialApproved/masterData/chartOfAccounts/code%\",\"accountType\":\"%financialApproved/masterData/account/accountType%\",\"groupAccount\":\"%financialApproved/masterData/account/groupAccount%\",\"costCategory\":\"%financialApproved/masterData/account/costCategory%\",\"descriptions\":[%descriptionsJson%],\"assignments\":[%assignmentsJson%],\"dependencies\":[{\"type\":\"CHART_OF_ACCOUNTS\",\"globalMasterId\":\"%financialApproved/masterData/chartOfAccounts/stepId%\",\"code\":\"%financialApproved/masterData/chartOfAccounts/code%\"}]}}";
+                drop `descriptionsJson`;
+                drop `assignmentsJson`;
+            }
+            INVOKE pub.string:replace {
+                validateInput: false
+                validateOutput: false
+                input {
+                    copy `canonicalJson` -> `inString`;
+                    set `searchString` = "^@";
+                    set `replaceString` = "";
+                    set `useRegex` = "true";
+                }
+                output {
+                    mapTarget {
+                        String canonicalJson;
+                    }
+                    copy `value` -> `canonicalJson`;
+                    drop `value`;
+                    drop `inString`;
+                    drop `searchString`;
+                    drop `replaceString`;
+                    drop `useRegex`;
+                }
+            }
+            INVOKE pub.json:jsonToDocument {
+                validateInput: false
+                validateOutput: false
+                input {
+                    copy `canonicalJson` -> `jsonData`;
+                    set `documentTypeName` = "project.femsa_financial_mdm.documenttypes:sapCanonicalDT";
+                }
+                output {
+                    mapTarget {
+                        record sapCanonical {
+                            allowUnspecifiedFields: true;
+                        };
+                        String jsonCanonical;
+                    }
+                    copy `document` -> `sapCanonical`;
+                    copy `canonicalJson` -> `jsonCanonical`;
+                    drop `document`;
+                    drop `jsonData`;
+                    drop `documentTypeName`;
+                    drop `canonicalJson`;
+                    drop `financialApproved`;
+                }
+            }
+            INVOKE project.femsa_financial_mdm.integrations:postGLAccount {
+                validateInput: false
+                validateOutput: false
+            }
+            IF (publicationStatus=="APPLIED") {
+                MAP {
+                    mapTarget {
+                        String callbackStatus;
+                    }
+                    set `callbackStatus` = "APPLIED";
+                }
+            } ELSE {
+                IF (publicationStatus=="REJECTED") {
+                    MAP {
+                        mapTarget {
+                            String callbackStatus;
+                        }
+                        set `callbackStatus` = "REJECTED";
+                    }
+                } ELSE {
+                    MAP {
+                        mapTarget {
+                            String callbackStatus;
+                        }
+                        set `callbackStatus` = "QUARANTINED";
+                    }
+                }
+            }
+            INVOKE pub.datetime:build {
+                validateInput: false
+                validateOutput: false
+                input {
+                    mapTarget {
+                        String `pattern`;
+                        String timezone;
+                    }
+                    set `pattern` = "yyyy-MM-dd'T'HH:mm:ss'Z'";
+                    set `timezone` = "UTC";
+                }
+                output {
+                    mapTarget {
+                        String confirmedAt;
+                    }
+                    copy `value` -> `confirmedAt`;
+                    drop `value`;
+                    drop `pattern`;
+                    drop `timezone`;
+                }
+            }
+            MAP {
+                mapTarget {
+                    String callbackJson;
+                    record callbackHeaders {
+                        allowUnspecifiedFields: true;
+                    } {
+                        String Content-Type;
+                    };
+                }
+                set (variable) `callbackJson` = "@{\"stepId\":\"%sapCanonical/meta/globalMasterId%\",\"version\":%versionStr%,\"target\":\"SAP\",\"status\":\"%callbackStatus%\",\"targetObjectId\":\"%sapObjectId%\",\"targetRequestId\":\"%requestId%\",\"correlationId\":\"%sapCanonical/meta/correlationId%\",\"confirmedAt\":\"%confirmedAt%\"}";
+                set `callbackHeaders`/`Content-Type` = "application/json";
+                drop `confirmedAt`;
+            }
+            INVOKE pub.string:replace {
+                validateInput: false
+                validateOutput: false
+                input {
+                    copy `callbackJson` -> `inString`;
+                    set `searchString` = "^@";
+                    set `replaceString` = "";
+                    set `useRegex` = "true";
+                }
+                output {
+                    mapTarget {
+                        String callbackJson;
+                    }
+                    copy `value` -> `callbackJson`;
+                    drop `value`;
+                    drop `inString`;
+                    drop `searchString`;
+                    drop `replaceString`;
+                    drop `useRegex`;
+                }
+            }
+            INVOKE pub.string:replace {
+                validateInput: false
+                validateOutput: false
+                input {
+                    copy `callbackJson` -> `inString`;
+                    set `searchString` = "%[^%\"]*%";
+                    set `replaceString` = "";
+                    set `useRegex` = "true";
+                }
+                output {
+                    mapTarget {
+                        String callbackJson;
+                    }
+                    copy `value` -> `callbackJson`;
+                    drop `value`;
+                    drop `inString`;
+                    drop `searchString`;
+                    drop `replaceString`;
+                    drop `useRegex`;
+                }
+            }
+            IF (errorMessage!=$null&&errorMessage!="") {
+                INVOKE pub.string:replace {
+                    validateInput: false
+                    validateOutput: false
+                    input {
+                        copy `errorCode` -> `inString`;
+                        set `searchString` = "([\"\\\\])";
+                        set `replaceString` = "\\\\$1";
+                        set `useRegex` = "true";
+                    }
+                    output {
+                        mapTarget {
+                            String errorCode;
+                        }
+                        copy `value` -> `errorCode`;
+                        drop `value`;
+                        drop `inString`;
+                        drop `searchString`;
+                        drop `replaceString`;
+                        drop `useRegex`;
+                    }
+                }
+                INVOKE pub.string:replace {
+                    validateInput: false
+                    validateOutput: false
+                    input {
+                        copy `errorCode` -> `inString`;
+                        set `searchString` = "\\p{Cntrl}";
+                        set `replaceString` = " ";
+                        set `useRegex` = "true";
+                    }
+                    output {
+                        mapTarget {
+                            String errorCode;
+                        }
+                        copy `value` -> `errorCode`;
+                        drop `value`;
+                        drop `inString`;
+                        drop `searchString`;
+                        drop `replaceString`;
+                        drop `useRegex`;
+                    }
+                }
+                INVOKE pub.string:replace {
+                    validateInput: false
+                    validateOutput: false
+                    input {
+                        copy `errorMessage` -> `inString`;
+                        set `searchString` = "([\"\\\\])";
+                        set `replaceString` = "\\\\$1";
+                        set `useRegex` = "true";
+                    }
+                    output {
+                        mapTarget {
+                            String errorMessage;
+                        }
+                        copy `value` -> `errorMessage`;
+                        drop `value`;
+                        drop `inString`;
+                        drop `searchString`;
+                        drop `replaceString`;
+                        drop `useRegex`;
+                    }
+                }
+                INVOKE pub.string:replace {
+                    validateInput: false
+                    validateOutput: false
+                    input {
+                        copy `errorMessage` -> `inString`;
+                        set `searchString` = "\\p{Cntrl}";
+                        set `replaceString` = " ";
+                        set `useRegex` = "true";
+                    }
+                    output {
+                        mapTarget {
+                            String errorMessage;
+                        }
+                        copy `value` -> `errorMessage`;
+                        drop `value`;
+                        drop `inString`;
+                        drop `searchString`;
+                        drop `replaceString`;
+                        drop `useRegex`;
+                    }
+                }
+                MAP {
+                    mapTarget {
+                        String errorTail;
+                    }
+                    set (variable) `errorTail` = ",\"error\":{\"code\":\"%errorCode%\",\"message\":\"%errorMessage%\"}}";
+                }
+                INVOKE pub.string:replace {
+                    validateInput: false
+                    validateOutput: false
+                    input {
+                        copy `errorTail` -> `inString`;
+                        set `searchString` = "%errorCode%";
+                        set `replaceString` = "";
+                        set `useRegex` = "true";
+                    }
+                    output {
+                        mapTarget {
+                            String errorTail;
+                        }
+                        copy `value` -> `errorTail`;
+                        drop `value`;
+                        drop `inString`;
+                        drop `searchString`;
+                        drop `replaceString`;
+                        drop `useRegex`;
+                    }
+                }
+                INVOKE pub.string:replace {
+                    validateInput: false
+                    validateOutput: false
+                    input {
+                        copy `callbackJson` -> `inString`;
+                        set `searchString` = "[}]$";
+                        set `replaceString` = "";
+                        set `useRegex` = "true";
+                    }
+                    output {
+                        mapTarget {
+                            String callbackJson;
+                        }
+                        copy `value` -> `callbackJson`;
+                        drop `value`;
+                        drop `inString`;
+                        drop `searchString`;
+                        drop `replaceString`;
+                        drop `useRegex`;
+                    }
+                }
+                INVOKE pub.string:concat {
+                    validateInput: false
+                    validateOutput: false
+                    input {
+                        copy `callbackJson` -> `inString1`;
+                        copy `errorTail` -> `inString2`;
+                    }
+                    output {
+                        mapTarget {
+                            String callbackJson;
+                        }
+                        copy `value` -> `callbackJson`;
+                        drop `value`;
+                        drop `inString1`;
+                        drop `inString2`;
+                        drop `errorTail`;
+                    }
+                }
+            }
+            MAP {
+                drop `i3Error`;
+            }
+            TRY {
+                INVOKE pub.client:http {
+                    validateInput: false
+                    validateOutput: false
+                    input {
+                        mapTarget {
+                            String url;
+                            String method;
+                            String timeout;
+                            record data {
+                                required: false;
+                                allowUnspecifiedFields: true;
+                            } {
+                                record args {
+                                    required: false;
+                                    allowUnspecifiedFields: true;
+                                };
+                                String[][] table {
+                                    required: false;
+                                };
+                                String string {
+                                    required: false;
+                                };
+                                Object bytes {
+                                    required: false;
+                                };
+                                Object mimeStream {
+                                    required: false;
+                                };
+                                Object stream {
+                                    required: false;
+                                };
+                                String encoding {
+                                    required: false;
+                                };
+                            };
+                        }
+                        set `url` = "http://158.23.160.94/step/api/v1/publication-status";
+                        set `method` = "post";
+                        set `timeout` = "30000";
+                        copy `callbackJson` -> `data`/`string`;
+                        set `data`/`encoding` = "UTF-8";
+                        copy `callbackHeaders` -> `headers`;
+                    }
+                }
+                MAP {
+                    mapSource {
+                        record header;
+                    }
+                    mapTarget {
+                        String i3HttpStatus;
+                    }
+                    copy `header`/`status` -> `i3HttpStatus`;
+                    drop `body`;
+                    drop `header`;
+                    drop `data`;
+                    drop `headers`;
+                    drop `url`;
+                    drop `method`;
+                    drop `timeout`;
+                    drop `encodedURL`;
+                }
+            } CATCH {
+                INVOKE pub.flow:getLastError {
+                    validateInput: false
+                    validateOutput: false
+                }
+                MAP {
+                    mapTarget {
+                        String i3Error;
+                    }
+                    set (variable) `i3Error` = "%lastError/error%";
+                    drop `body`;
+                    drop `header`;
+                    drop `data`;
+                    drop `headers`;
+                    drop `url`;
+                    drop `method`;
+                    drop `timeout`;
+                    drop `encodedURL`;
+                }
+                INVOKE pub.string:replace {
+                    validateInput: false
+                    validateOutput: false
+                    input {
+                        copy `i3Error` -> `inString`;
+                        set `searchString` = "(?s)^.*ISC[.]0064[.]9314.*$";
+                        set `replaceString` = "401";
+                        set `useRegex` = "true";
+                    }
+                    output {
+                        mapTarget {
+                            String i3Error;
+                        }
+                        copy `value` -> `i3Error`;
+                        drop `value`;
+                        drop `inString`;
+                        drop `searchString`;
+                        drop `replaceString`;
+                        drop `useRegex`;
+                    }
+                }
+                INVOKE pub.string:replace {
+                    validateInput: false
+                    validateOutput: false
+                    input {
+                        copy `i3Error` -> `inString`;
+                        set `searchString` = "(?s)^(?:(?:.*?[^0-9])?([45][0-9]{2})(?![0-9]).*|.*)$";
+                        set `replaceString` = "$1";
+                        set `useRegex` = "true";
+                    }
+                    output {
+                        mapTarget {
+                            String i3HttpStatus;
+                        }
+                        copy `value` -> `i3HttpStatus`;
+                        drop `value`;
+                        drop `inString`;
+                        drop `searchString`;
+                        drop `replaceString`;
+                        drop `useRegex`;
+                    }
+                }
+                IF (i3HttpStatus==$null||i3HttpStatus=="") {
+                    MAP {
+                        mapTarget {
+                            String i3HttpStatus;
+                        }
+                        set `i3HttpStatus` = "ERROR";
+                    }
                 }
             }
             INVOKE pub.flow:debugLog {
                 validateInput: false
                 validateOutput: false
                 input {
-                    copy `failMessage` -> `message`;
+                    mapTarget {
+                        String message;
+                        String function;
+                        String level;
+                    }
+                    set (variable) `message` = "Callback I3 SAP %callbackStatus% -> HTTP %i3HttpStatus%: %callbackJson%";
                     set `function` = "project.femsa_financial_mdm.integrations:propagateFinancialDataSVC";
-                    set `level` = "Error";
+                    set `level` = "Info";
+                }
+                output {
+                    drop `message`;
+                    drop `function`;
+                    drop `level`;
+                }
+            }
+            IF (i3HttpStatus!="200"&&i3HttpStatus!="201"&&i3HttpStatus!="202"&&i3HttpStatus!="204") {
+                MAP {
+                    mapTarget {
+                        String httpCode;
+                        String errorDump;
+                    }
+                    set `httpCode` = "500";
+                    set (variable) `errorDump` = "Falha no callback I3 SAP (HTTP %i3HttpStatus%) para %sapCanonical/meta/globalMasterId% [callback %callbackStatus%]: %i3Error%";
+                }
+                INVOKE pub.string:replace {
+                    validateInput: false
+                    validateOutput: false
+                    input {
+                        copy `errorDump` -> `inString`;
+                        set `searchString` = "%[^% ]*%";
+                        set `replaceString` = "";
+                        set `useRegex` = "true";
+                    }
+                    output {
+                        mapTarget {
+                            String errorDump;
+                        }
+                        copy `value` -> `errorDump`;
+                        drop `value`;
+                        drop `inString`;
+                        drop `searchString`;
+                        drop `replaceString`;
+                        drop `useRegex`;
+                    }
+                }
+                EXIT {
+                    exitFrom: "mainFlow"
+                    signal: "FAILURE"
+                    failureMessage: "Falha no callback I3 SAP"
+                }
+            }
+            MAP {
+                mapTarget {
+                    String sapOk;
+                }
+                set `sapOk` = "false";
+                drop `i3Error`;
+            }
+            IF (httpStatus=="200"||httpStatus=="202") {
+                IF (publicationStatus=="APPLIED") {
+                    MAP {
+                        mapTarget {
+                            String sapOk;
+                        }
+                        set `sapOk` = "true";
+                    }
+                }
+            }
+            IF (sapOk!="true") {
+                IF (publicationStatus=="REJECTED"||publicationStatus=="QUARANTINED") {
+                    MAP {
+                        mapTarget {
+                            String httpCode;
+                        }
+                        set `httpCode` = "422";
+                    }
+                } ELSE {
+                    MAP {
+                        mapTarget {
+                            String httpCode;
+                        }
+                        set `httpCode` = "500";
+                    }
+                }
+                MAP {
+                    mapTarget {
+                        String errorDump;
+                    }
+                    set (variable) `errorDump` = "Falha na publicacao SAP %sapCanonical/meta/globalMasterId% (status %publicationStatus%, callback %callbackStatus%, HTTP %httpStatus%, codigo %errorCode%): %errorMessage%";
+                }
+                INVOKE pub.string:replace {
+                    validateInput: false
+                    validateOutput: false
+                    input {
+                        copy `errorDump` -> `inString`;
+                        set `searchString` = "%[^% ]*%";
+                        set `replaceString` = "";
+                        set `useRegex` = "true";
+                    }
+                    output {
+                        mapTarget {
+                            String errorDump;
+                        }
+                        copy `value` -> `errorDump`;
+                        drop `value`;
+                        drop `inString`;
+                        drop `searchString`;
+                        drop `replaceString`;
+                        drop `useRegex`;
+                    }
+                }
+                EXIT {
+                    exitFrom: "mainFlow"
+                    signal: "FAILURE"
+                    failureMessage: "Falha na publicacao SAP"
+                }
+            }
+            MAP {
+                mapTarget {
+                    String httpCode;
+                }
+                set `httpCode` = "200";
+                drop `sapOk`;
+                drop `callbackJson`;
+                drop `callbackHeaders`;
+                drop `versionStr`;
+                drop `sapCanonical`;
+            }
+            INVOKE pub.flow:debugLog {
+                validateInput: false
+                validateOutput: false
+                input {
+                    mapTarget {
+                        String function;
+                        String level;
+                        String message;
+                    }
+                    set `function` = "project.femsa_financial_mdm.integrations:propagateFinancialDataSVC";
+                    set `level` = "Info";
+                    set `message` = "Terminando el mapeo en Mexico";
                 }
                 output {
                     drop `message`;
@@ -803,32 +886,105 @@ properties {
                 }
             }
         }
-        MAP {
-            drop `httpErrorStatus`;
+    } CATCH {
+        IF (httpCode==$null||httpCode=="") {
+            INVOKE pub.flow:getLastError {
+                validateInput: false
+                validateOutput: false
+            }
+            MAP {
+                mapTarget {
+                    String httpCode;
+                    String errorDump;
+                }
+                set `httpCode` = "500";
+                set (variable) `errorDump` = "%lastError/errorDump%";
+            }
+            INVOKE pub.string:replace {
+                validateInput: false
+                validateOutput: false
+                input {
+                    copy `errorDump` -> `inString`;
+                    set `searchString` = "^%[^%]*%$";
+                    set `replaceString` = "";
+                    set `useRegex` = "true";
+                }
+                output {
+                    mapTarget {
+                        String errorDump;
+                    }
+                    copy `value` -> `errorDump`;
+                    drop `value`;
+                    drop `inString`;
+                    drop `searchString`;
+                    drop `replaceString`;
+                    drop `useRegex`;
+                }
+            }
+            IF (errorDump==$null||errorDump=="") {
+                MAP {
+                    mapTarget {
+                        String errorDump;
+                    }
+                    set (variable) `errorDump` = "%lastError/error%";
+                }
+            }
         }
-        MAP {
-            drop `callbackJson`;
-            drop `callbackHeaders`;
-            drop `versionStr`;
+        INVOKE pub.flow:setResponseCode {
+            validateInput: false
+            validateOutput: false
+            input {
+                copy `httpCode` -> `responseCode`;
+                set `reasonPhrase` = "";
+            }
+            output {
+                drop `responseCode`;
+                drop `reasonPhrase`;
+            }
         }
         INVOKE pub.flow:debugLog {
             validateInput: false
             validateOutput: false
             input {
                 mapTarget {
+                    String message;
                     String function;
                     String level;
-                    String message;
                 }
+                set (variable) `message` = "propagateFinancialDataSVC falhou com HTTP %httpCode%: %errorDump%";
                 set `function` = "project.femsa_financial_mdm.integrations:propagateFinancialDataSVC";
-                set `level` = "Info";
-                set `message` = "Terminando el mapeo en Mexico";
+                set `level` = "Error";
             }
             output {
                 drop `message`;
                 drop `function`;
                 drop `level`;
             }
+        }
+        MAP {
+            drop `sapOk`;
+            drop `i3Error`;
+            drop `callbackJson`;
+            drop `callbackHeaders`;
+            drop `versionStr`;
+            drop `sapCanonical`;
+            drop `financialApproved`;
+            drop `canonicalJson`;
+            drop `descriptionsJson`;
+            drop `assignmentsJson`;
+            drop `confirmedAt`;
+            drop `toList`;
+            drop `document`;
+            drop `jsonData`;
+            drop `jsonPayload`;
+            drop `documentTypeName`;
+        }
+    }
+    IF (httpCode>=400) {
+        EXIT {
+            exitFrom: "$flow"
+            signal: "FAILURE"
+            failureMessage: "%httpCode%"
         }
     }
 }

@@ -15,7 +15,7 @@
         <value name="other_properties"></value>
         <value name="other_runtime_properties">streaming.consumer.validate.consumers.not.greater.than.partitions=true
 streaming.client.publish.mode=asynchronous</value>
-        <value name="enabled">true</value>
+        <value name="enabled">false</value>
         <value name="securityProtocol"></value>
         <null name="truststoreAlias"/>
         <null name="keystoreAlias"/>

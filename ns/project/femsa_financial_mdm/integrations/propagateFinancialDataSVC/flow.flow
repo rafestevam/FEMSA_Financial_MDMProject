@@ -6,6 +6,11 @@ service propagateFinancialDataSVC (
     output {
         String jsonCanonical;
         String httpStatus;
+        String i3HttpStatus;
+        String callbackStatus;
+        String errorCode;
+        String errorMessage;
+        String failMessage;
     }
 )
 properties {
@@ -639,11 +644,74 @@ properties {
                 drop `encodedURL`;
             }
         } CATCH {
+            INVOKE pub.flow:getLastError {
+                validateInput: false
+                validateOutput: false
+            }
             MAP {
                 mapTarget {
-                    String i3HttpStatus;
+                    String i3Error;
                 }
-                set `i3HttpStatus` = "ERROR";
+                set (variable) `i3Error` = "%lastError/error%";
+                drop `body`;
+                drop `header`;
+                drop `data`;
+                drop `headers`;
+                drop `url`;
+                drop `method`;
+                drop `timeout`;
+                drop `encodedURL`;
+            }
+            INVOKE pub.string:replace {
+                validateInput: false
+                validateOutput: false
+                input {
+                    copy `i3Error` -> `inString`;
+                    set `searchString` = "(?s)^.*ISC[.]0064[.]9314.*$";
+                    set `replaceString` = "401";
+                    set `useRegex` = "true";
+                }
+                output {
+                    mapTarget {
+                        String i3Error;
+                    }
+                    copy `value` -> `i3Error`;
+                    drop `value`;
+                    drop `inString`;
+                    drop `searchString`;
+                    drop `replaceString`;
+                    drop `useRegex`;
+                }
+            }
+            INVOKE pub.string:replace {
+                validateInput: false
+                validateOutput: false
+                input {
+                    copy `i3Error` -> `inString`;
+                    set `searchString` = "(?s)^(?:(?:.*?[^0-9])?([45][0-9]{2})(?![0-9]).*|.*)$";
+                    set `replaceString` = "$1";
+                    set `useRegex` = "true";
+                }
+                output {
+                    mapTarget {
+                        String i3HttpStatus;
+                    }
+                    copy `value` -> `i3HttpStatus`;
+                    drop `value`;
+                    drop `inString`;
+                    drop `searchString`;
+                    drop `replaceString`;
+                    drop `useRegex`;
+                    drop `i3Error`;
+                }
+            }
+            IF (i3HttpStatus==$null||i3HttpStatus=="") {
+                MAP {
+                    mapTarget {
+                        String i3HttpStatus;
+                    }
+                    set `i3HttpStatus` = "ERROR";
+                }
             }
         }
         INVOKE pub.flow:debugLog {
@@ -734,11 +802,6 @@ properties {
                     drop `level`;
                 }
             }
-            EXIT {
-                exitFrom: "$flow"
-                signal: "FAILURE"
-                failureMessage: "%failMessage%"
-            }
         }
         MAP {
             drop `httpErrorStatus`;
@@ -746,10 +809,7 @@ properties {
         MAP {
             drop `callbackJson`;
             drop `callbackHeaders`;
-            drop `callbackStatus`;
             drop `versionStr`;
-            drop `errorCode`;
-            drop `errorMessage`;
         }
         INVOKE pub.flow:debugLog {
             validateInput: false
